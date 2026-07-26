@@ -70,7 +70,7 @@ uart:
 packages:
   rs485:
     url: https://github.com/b3nj1/rs485_frame-examples
-    ref: v2.0.0          # PINNED release tag — bump deliberately to update
+    ref: v3.0.1          # PINNED release tag — bump deliberately to update
     refresh: 1d
     files:
       # Bus package is REQUIRED and stays uncommented.

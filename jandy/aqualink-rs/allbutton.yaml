@@ -53,59 +53,60 @@ rs485_frame:
       queue_policy: replace_latest
       max_queue_size: 1
 
-# Buttons (send commands to the controller). Command value = 32-bit word whose
-# low byte is the Jandy key byte. Key bytes from community reverse-engineering;
-# verify on your system.
+# Buttons (send commands to the controller). Each Jandy keypress is a single key
+# byte: the hub's command_format has value_element_bytes: 1, so `value:` is written
+# as one byte and no repeat/duplication is needed (unlike Hayward). Key bytes are
+# from community reverse-engineering; verify on your system.
 button:
   - platform: rs485_frame
     rs485_frame_id: pool
     name: "Filter Pump"
-    value: 0x00000002   # key byte = 0x02
+    value: 0x02
 
   - platform: rs485_frame
     rs485_frame_id: pool
     name: "Spa"
-    value: 0x00000001
+    value: 0x01
 
   - platform: rs485_frame
     rs485_frame_id: pool
     name: "Aux 1"
-    value: 0x00000005
+    value: 0x05
 
   - platform: rs485_frame
     rs485_frame_id: pool
     name: "Aux 2"
-    value: 0x0000000a
+    value: 0x0a
 
   - platform: rs485_frame
     rs485_frame_id: pool
     name: "Aux 3"
-    value: 0x0000000f
+    value: 0x0f
 
   - platform: rs485_frame
     rs485_frame_id: pool
     name: "Aux 4"
-    value: 0x00000006   # use 0x14 for RS12/RS16 systems
+    value: 0x06   # use 0x14 for RS12/RS16 systems
 
   - platform: rs485_frame
     rs485_frame_id: pool
     name: "Pool Heater"
-    value: 0x00000012
+    value: 0x12
 
   - platform: rs485_frame
     rs485_frame_id: pool
     name: "Spa Heater"
-    value: 0x00000017
+    value: 0x17
 
   - platform: rs485_frame
     rs485_frame_id: pool
     name: "Hold"
-    value: 0x00000019
+    value: 0x19
 
   - platform: rs485_frame
     rs485_frame_id: pool
     name: "Override"
-    value: 0x0000001e
+    value: 0x1e
 
 sensor:
   - platform: rs485_frame
