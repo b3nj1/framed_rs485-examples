@@ -124,7 +124,7 @@ rs485_frame:
                               (uint32_t(payload[4]) << 16) | (uint32_t(payload[5]) << 24);
               id(g_led_mask) = mask;
               char hex_buf[12];
-              snprintf(hex_buf, sizeof(hex_buf), "0x%08X", mask);
+              snprintf(hex_buf, sizeof(hex_buf), "0x%08X", static_cast<unsigned int>(mask));
               id(led_mask_hex).publish_state(std::string(hex_buf));
 
       # -----------------------------------------------------------------------

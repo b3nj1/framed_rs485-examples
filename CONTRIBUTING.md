@@ -242,6 +242,12 @@ and users' automations derive from these).
    or be documented as required-in-device-config if list-valued (list defaults in packages
    concatenate rather than override — see §5).
 4. **`CHANGELOG.md` + migration notes** for every breaking change.
+5. **Bump every affected `example-device*.yaml`'s pinned `ref:`** when cutting a tag. The tag itself
+   doesn't propagate anywhere automatically — each family's example device file (currently
+   `hayward/aqualogic/example-device.yaml`, `jandy/aqualink-rs/example-passive.yaml`,
+   `jandy/aqualink-rs/example-allbutton.yaml`) hardcodes `ref: vX.Y.Z` and stays on the old tag until
+   someone edits it. Grep `ref: v` across the repo before tagging a release and bump every hit whose
+   package files changed in that release.
 
 ## 9. `external_components` / staging ref
 

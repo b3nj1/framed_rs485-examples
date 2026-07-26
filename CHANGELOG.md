@@ -9,6 +9,17 @@ All notable changes to the published configuration interface are documented here
 - **MINOR** — additive: a new profile file, a new optional substitution *with a default*, a new entity.
 - **PATCH** — decoder or bug fix with no interface change.
 
+## [3.0.1] - 2026-07-26
+
+### Fixed
+
+- **Compile warning in `hayward/aqualogic/bus.yaml`**. The LED-mask lambda's
+  `snprintf(hex_buf, sizeof(hex_buf), "0x%08X", mask)` passed a `uint32_t` (`long unsigned int`) to a
+  `%X` conversion expecting `unsigned int`, producing a `-Wformat=` warning on ESP32 builds. Cast to
+  `unsigned int` before formatting. No interface change.
+
+---
+
 ## [3.0.0] - unreleased
 
 ### Changed
@@ -114,6 +125,7 @@ Initial released interface. Restructured the monolithic per-controller YAMLs int
 - `generic/` discovery / sniffer / skeleton remain monolithic bootstrap tools (exempt from the
   package structure) with header notes pointing at it for real integrations.
 
+[3.0.1]: https://github.com/b3nj1/rs485_frame-examples/compare/v3.0.0...v3.0.1
 [3.0.0]: https://github.com/b3nj1/rs485_frame-examples/compare/v2.0.0...v3.0.0
 [2.0.0]: https://github.com/b3nj1/rs485_frame-examples/compare/v1.0.0...v2.0.0
 [1.0.0]: https://github.com/b3nj1/rs485_frame-examples/releases/tag/v1.0.0
