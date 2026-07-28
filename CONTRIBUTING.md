@@ -29,15 +29,19 @@ not used.
 | Term | What it is | Reusable? | Edited by | Example |
 |---|---|---|---|---|
 | **Device config** | The complete ESPHome config for one physical ESP board: `substitutions` + `wifi`/`api`/`ota`/secrets + a `packages:` list. The only file flashed. | No (per-installation) | End user | `hayward/aqualogic/example-device.yaml` |
+| **Quickstart** | A device config, but fixed to core entities only (`bus.yaml` alone, no equipment `files:` entries) and pinned to one hardware path. Exists to make first flash turnkey; `example-device.yaml` stays the full menu. | No (per-installation, or copied as-is for the pinned board) | End user | `hayward/aqualogic/quickstart-waveshare.yaml` |
 | **Bus package** | The shared RS485 hub for a controller family: `uart`, `framing`, `crc`, `tx`, `command_format` + panel-wide entities. One per family. | Yes | Contributor | `hayward/aqualogic/bus.yaml` |
 | **Equipment profile** | One piece of equipment, keyed on the `frame_type`s it owns. Contributes `on_frame` decoders + its own entities. | Yes | Contributor | `pump-vsp.yaml`, `swg.yaml` |
+| **Opt-in add-on** | Not included by any device config or quickstart by default; a user adds it deliberately, per call site, alongside the feature it extends. Marked EXPERIMENTAL (or similar) in its header when the behavior carries a real tradeoff the default install shouldn't take on silently. | Yes (paired with the file it extends, by matching var, e.g. `button_id`) | Contributor | `hayward/aqualogic/confirm-retry.yaml` |
 
 Layout: each controller family lives at `vendor/controller-family/` and holds `bus.yaml`, one file
-per equipment profile, and `example-device.yaml` (one per operating mode where relevant, e.g. Jandy
-passive vs. allbutton). Reusable skeletons live in `templates/`; captures in `captures/`.
+per equipment profile, `example-device.yaml` (one per operating mode where relevant, e.g. Jandy
+passive vs. allbutton), and, where offered, one or more `quickstart-*.yaml` files and opt-in
+add-ons. Reusable skeletons live in `templates/`; captures in `captures/`.
 
 **File naming:** lowercase, hyphenated, named for the equipment (`pump-vsp.yaml`, `heater.yaml`,
-`leds-display.yaml`). `bus.yaml` and `example-device.yaml` are fixed names.
+`leds-display.yaml`) or, for a quickstart, the hardware path it targets (`quickstart-waveshare.yaml`,
+`quickstart-discrete.yaml`). `bus.yaml` and `example-device.yaml` are fixed names.
 
 ## 3. The pluggable unit
 
@@ -168,6 +172,11 @@ description + `Status: tested|UNTESTED` — to that family's `example-device.yam
 stays uncommented (it is mandatory). This keeps the consumer-facing menu authoritative; the PR
 checklist gates on it.
 
+This obligation does not extend to `quickstart-*.yaml` files — they are deliberately fixed to
+`bus.yaml` alone (see the Quickstart row in the terminology table above) and never gain equipment
+`files:` entries as profiles are added. A new profile needs an `example-device.yaml` line; it does
+not need a quickstart change.
+
 ## 7. Templates and the standard metadata header
 
 Two skeletons live in `templates/`: `templates/bus.yaml` (bus package) and `templates/profile.yaml`
@@ -221,6 +230,17 @@ When you publish findings, state the convention explicitly ("offsets are payload
 indexing, and never block. The full list with rationale lives on the
 [hub component page](https://esphome.io/components/rs485_frame/); follow it for every decoder.
 
+**Only build a sensor for a value the bus reports reliably, not for whatever a session happened to
+catch on the display.** A sniffer capture will incidentally decode all kinds of menu/settings
+screens (a heater setpoint, a schedule, a config value) that only appear on the display while
+someone is actively standing at the panel navigating to them — unlike Pool/Spa/Air Temp, which
+rotate through the display on their own. A sensor built from a screen like that goes stale the
+moment the menu is left, and HA has no way to tell "not seen since boot" from "confirmed value from
+six weeks ago" unless you also add a `timeout:` filter (`esphome/components/sensor/filter.py`) to
+make the gap visible. Default to **not** shipping the sensor at all for anything that isn't
+reliably periodic; if you do ship one anyway, it must be `disabled_by_default: true` and carry a
+`timeout:` filter, not just a throttle.
+
 ## 8a. Versioning and breaking changes
 
 Pointing users at this repo makes the package files a **published interface**. The breaking surface
@@ -251,10 +271,28 @@ and users' automations derive from these).
 
 ## 9. `external_components` / staging ref
 
-`rs485_frame` is not yet in an ESPHome release. The `external_components` block (pointing at the
-staging branch) lives **once, in `bus.yaml`** — equipment profiles and device configs must not repeat
-it (`external_components` is a list and would duplicate). Remove the block when `rs485_frame` ships in
-an official ESPHome release.
+`rs485_frame` is not yet in an ESPHome release. Every standalone config (quickstarts,
+`example-device.yaml`, the Jandy examples, `generic/*.yaml`) carries its own `external_components`
+block; within a device config assembled from `bus.yaml` as a remote package it lives **once, in
+`bus.yaml`** — equipment profiles must not repeat it (`external_components` is a list and would
+duplicate). Remove the block entirely when `rs485_frame` ships in an official ESPHome release.
+
+**Pin the component the same way the guardrails in §8a pin the examples: an immutable tag, never
+the `rs485_frame` branch directly.** The branch is the live PR/development target and moves under
+active fixes; `github://b3nj1/esphome@rs485_frame` in a shipped example would let a reflash pull in
+different component code with no change on the examples side, which is exactly the `refresh:`
+surprise §8a guardrail 1 exists to prevent. Instead:
+
+1. When cutting an examples release whose package files depend on component-side behavior, commit
+   the component changes on the fork's `rs485_frame` branch, then tag that commit
+   `rs485_frame-<YYYYMMDD>` (date of the tag, not necessarily the release) and push both the branch
+   and the tag.
+2. Point every `external_components: source:` at that tag, not the branch. Grep
+   `b3nj1/esphome@rs485_frame` across the repo before tagging a release and bump every hit.
+3. State the pairing in `CHANGELOG.md`: which component tag a given examples release was tested
+   against (see §8a's changelog format). A capture doc's "software versions used" table is an
+   exception — it documents what was actually running at capture time and should not be rewritten
+   to point at a tag that didn't exist yet.
 
 ## 10. UNTESTED policy
 

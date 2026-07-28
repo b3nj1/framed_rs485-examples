@@ -3,9 +3,10 @@
 # -----------------------------------------------------------------------------
 # Status:      tested-on-hardware
 # Tested on:   Hayward AquaLogic / ProLogic with gas/heat-pump heater; ESP32-S3;
-#              ESPHome 2026.6.0-dev; rs485_frame @ github://b3nj1/esphome@rs485_frame
+#              ESPHome 2026.6.0-dev; rs485_frame @ github://b3nj1/esphome@rs485_frame-20260728
 # Bus:         19200 baud, 8N2  (see bus.yaml)
 # Owns frames: [0x01,0x02] bit 0 (heater active LED); [0x01,0x03] heater-mode latch
+#              (decode_variations.md §5.7)
 # Offsets:     payload-relative — payload[0..1] = frame_type, data starts at payload[2]
 # References:  https://github.com/swilson/aqualogic
 #
@@ -29,6 +30,9 @@ rs485_frame:
   - id: !extend pool
     on_frame:
       # Heater active LED — bit 0 of the solid LED mask in the panel LED frame.
+      # (Same 32-bit LE mask math as bus.yaml's [0x01,0x02]/[0x04,0x0A] handlers
+      # and button.yaml's confirm predicate -- keep all four in sync if the byte
+      # offsets ever change.)
       - frame_type: [0x01, 0x02]
         then:
           - lambda: |-
@@ -46,10 +50,12 @@ rs485_frame:
         then:
           - lambda: |-
               // Stack buffer; strip the blink bit and keep printable ASCII.
+              // Text starts immediately at payload[2] -- no header byte before it
+              // (decode_variations.md §5.1; matches bus.yaml's [0x01,0x03] handler).
               const size_t BUF_LEN = 128;
               static char text[BUF_LEN];
               uint8_t tlen = 0;
-              for (size_t i = 3; i < payload.size() && tlen < (BUF_LEN - 1); i++) {
+              for (size_t i = 2; i < payload.size() && tlen < (BUF_LEN - 1); i++) {
                 uint8_t b = payload[i] & 0x7f;
                 if (b < 0x20 || b > 0x7E) continue;
                 text[tlen++] = char(b);
@@ -64,6 +70,12 @@ rs485_frame:
                   id(heater_auto).publish_state(false);
                   id(g_heater_proof_ms) = millis();
                 }
+                // Deliberately not decoding the "NN_F" setpoint screen itself (see
+                // decode_variations.md §5.7): unlike Pool/Spa/Air Temp it is not on the
+                // display's periodic rotation, only appearing while someone is actively
+                // in the heater menu at the panel. A sensor built from it would go stale
+                // the moment the menu is left and read as a live value indefinitely --
+                // see CONTRIBUTING.md's "reliably periodic screens only" rule.
               }
               // Revert to false if no heater-screen proof has arrived for 60 s.
               // (Set to 2-3x your display cycle period; AquaLogic cycles ~every 20 s.)

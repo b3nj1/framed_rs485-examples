@@ -3,7 +3,7 @@
 # -----------------------------------------------------------------------------
 # Status:      tested-on-hardware
 # Tested on:   Hayward AquaLogic / ProLogic; ESP32-S3; ESPHome 2026.6.0-dev;
-#              rs485_frame @ github://b3nj1/esphome@rs485_frame
+#              rs485_frame @ github://b3nj1/esphome@rs485_frame-20260728
 # Bus:         19200 baud, 8N2
 # Owns frames: gate [0x01,0x01]; value frames per command_format (wireless
 #              [0x00,0x83,0x01] by default); decodes panel LEDs [0x01,0x02] and
@@ -83,6 +83,12 @@ rs485_frame:
       # -----------------------------------------------------------------------
       # Panel LED status frame (0x01 0x02).
       #
+      # NOTE: the 32-bit LE mask math below (payload[2..5] solid, payload[6..9]
+      # blink) is re-derived independently in three other places: this file's
+      # [0x04,0x0A] handler below, heater.yaml's own [0x01,0x02] bit-0 read, and
+      # button.yaml's confirm-predicate LED read. If the bit layout or byte
+      # offsets ever change, update all four.
+      #
       # Payload bytes 2-5: 32-bit little-endian mask of solid-lit LEDs.
       # Confirmed bit positions (solid mask, swilson + ChaseDurand + live captures):
       #   bit    Status LED
@@ -91,7 +97,7 @@ rs485_frame:
       #    2     Check System
       #    3     Pool Mode
       #    4     Spa Mode
-      #    5     Filter  (flashing = pump low speed; not exposed by this profile)
+      #    5     Filter  (flashing = pump low speed; optional blink arm in led.yaml)
       #    6     Lights
       #    7     AUX 1
       #    8     AUX 2
@@ -115,6 +121,12 @@ rs485_frame:
       #
       # Stores the mask in g_led_mask (read by led.yaml polling binary sensors)
       # and publishes it as hex to the led_mask_hex diagnostic text sensor.
+      #
+      # Payload bytes 6-9: 32-bit little-endian mask of FLASHING LEDs, stored in
+      # g_led_blink (read by led.yaml's optional per-bit blink binary_sensor).
+      # Read only when the frame actually carries all 10 bytes -- some buses may
+      # only ever send the 6-byte (solid-only) form, and the solid mask above
+      # must keep working unconditionally either way.
       # -----------------------------------------------------------------------
       - frame_type: [0x01, 0x02]
         then:
@@ -126,6 +138,10 @@ rs485_frame:
               char hex_buf[12];
               snprintf(hex_buf, sizeof(hex_buf), "0x%08X", static_cast<unsigned int>(mask));
               id(led_mask_hex).publish_state(std::string(hex_buf));
+              if (payload.size() >= 10) {
+                id(g_led_blink) = uint32_t(payload[6]) | (uint32_t(payload[7]) << 8) |
+                                   (uint32_t(payload[8]) << 16) | (uint32_t(payload[9]) << 24);
+              }
 
       # -----------------------------------------------------------------------
       # Display frame (0x01 0x03) — display text + temperatures.
@@ -155,7 +171,9 @@ rs485_frame:
               // Blinking text: extract only bytes that had bit 7 set.
               uint8_t blen = 0;
               bool isblink = false;
-              for (size_t i = 3; i < payload.size() && tlen < (BUF_LEN-2); i++) {
+              // Text starts immediately at payload[2] -- no header byte before it
+              // (decode_variations.md §5.1: "no fixed header before the text").
+              for (size_t i = 2; i < payload.size() && tlen < (BUF_LEN-2); i++) {
                 uint8_t b = payload[i];
                 isblink = bool(b > 0x7F);
                 b &= 0x7f;
@@ -249,8 +267,150 @@ rs485_frame:
                 id(filter_speed_text).publish_state(std::string(p));
               }
 
+      # -----------------------------------------------------------------------
+      # Combined LED + display container (0x04 0x0A) — decode_variations.md §5.4.
+      #
+      # `04 0A` is a tagged container, NOT the same encoding as `01 03` (an
+      # earlier note in new-equipment-plan.md said otherwise; that was wrong --
+      # see the correction there). Layout after the frame_type bytes:
+      #
+      #   payload[2..3]   83 00           constant header (meaning unresolved)
+      #   payload[4]      tag 0x02        present only if an LED block follows
+      #   payload[5..12]  8 bytes         LED solid+blink masks, byte-identical
+      #                                   to the 01 02 payload body
+      #   payload[N]      tag 0x03        present only if a display block follows
+      #                                   (N = 4, or 13 if the LED block was present)
+      #   payload[N+1..]  up to 40 chars + 0x00 terminator, byte-identical to the
+      #                   01 03 payload body -- text starts immediately after the
+      #                   tag byte, no header byte in between (byte-traced against
+      #                   debug.040a.20260726.log shape A: 55 bytes = 4 header +
+      #                   1 tag + 8 LED + 1 tag + 40 chars + 1 terminator, exactly)
+      #
+      # Both blocks are independently optional (three shapes verified byte-for-byte
+      # against sniffer.040a_run1b.20260726.log: A = both, 55 bytes; B = display
+      # only, 46 bytes; C = LED only, 13 bytes). `04 0A` is emitted first in its
+      # cycle and is a proven strict superset of `01 02`/`01 03`, so this handler
+      # publishes to the SAME shared globals/sensors as those two -- it is a
+      # faster-arriving duplicate, not a separate set of entities.
+      #
+      # Per TODO.md's decision ("Ship a 04 0A decoder"): this is ADDED ALONGSIDE
+      # the 01 02 / 01 03 handlers above, which are NOT migrated or deleted --
+      # they stay as the independently-verified, tested path. Re-decodes both
+      # blocks independently (duplication-with-comment, matching heater.yaml's
+      # own "stays self-contained" convention) rather than sharing a C++ helper.
+      # -----------------------------------------------------------------------
+      - frame_type: [0x04, 0x0A]
+        then:
+          - lambda: |-
+              if (payload.size() < 4) return;
+              size_t idx = 4;  // payload[2..3] = 83 00 constant header, skipped
+
+              if (payload.size() > idx && payload[idx] == 0x02) {
+                if (payload.size() >= idx + 9) {
+                  uint32_t mask = uint32_t(payload[idx+1]) | (uint32_t(payload[idx+2]) << 8) |
+                                  (uint32_t(payload[idx+3]) << 16) | (uint32_t(payload[idx+4]) << 24);
+                  uint32_t blink = uint32_t(payload[idx+5]) | (uint32_t(payload[idx+6]) << 8) |
+                                   (uint32_t(payload[idx+7]) << 16) | (uint32_t(payload[idx+8]) << 24);
+                  id(g_led_mask) = mask;
+                  id(g_led_blink) = blink;
+                  char hex_buf[12];
+                  snprintf(hex_buf, sizeof(hex_buf), "0x%08X", static_cast<unsigned int>(mask));
+                  id(led_mask_hex).publish_state(std::string(hex_buf));
+                }
+                idx += 9;
+              }
+
+              if (payload.size() > idx && payload[idx] == 0x03) {
+                // Text starts immediately after the tag byte -- no header byte in
+                // between (matching the [0x01,0x03] handler's payload[2] start above).
+                const size_t BUF_LEN = 128;
+                static char text[BUF_LEN];
+                static char blink[BUF_LEN];
+                uint8_t tlen = 0;
+                uint8_t blen = 0;
+                bool isblink = false;
+                for (size_t i = idx + 1; i < payload.size() && tlen < (BUF_LEN-2); i++) {
+                  uint8_t b = payload[i];
+                  isblink = bool(b > 0x7F);
+                  b &= 0x7f;
+                  if (b < 0x20 || b > 0x7E) continue;
+                  if (b == '_') {
+                    if (tlen + 2 <= (BUF_LEN-2)) {
+                     text[tlen++] = '\xC2'; text[tlen++] = '\xB0';
+                     if (isblink) { blink[blen++] = '\xC2'; blink[blen++] = '\xB0'; }
+                    }
+                  } else {
+                    text[tlen++] = char(b);
+                    if (isblink) blink[blen++] = char(b);
+                  }
+                }
+                while (tlen > 0 && text[tlen - 1] == ' ') tlen--;
+                text[tlen] = '\0';
+                id(display_text).publish_state(std::string(text, tlen));
+
+                while (blen > 0 && blink[blen - 1] == ' ') blen--;
+                blink[blen] = '\0';
+                id(display_blink).publish_state(std::string(blink, blen));
+
+                if (strstr(text, "Temp")) {
+                  const char *p;
+                  p = strstr(text, "Pool Temp");
+                  if (p) {
+                    p += 9; while (*p == ' ') p++;
+                    float v = 0; bool ok = false;
+                    while (*p >= '0' && *p <= '9') { v = v * 10.0f + float(*p++ - '0'); ok = true; }
+                    if (ok) id(pool_temp).publish_state(v);
+                  }
+                  p = strstr(text, "Spa Temp");
+                  if (p) {
+                    p += 8; while (*p == ' ') p++;
+                    float v = 0; bool ok = false;
+                    while (*p >= '0' && *p <= '9') { v = v * 10.0f + float(*p++ - '0'); ok = true; }
+                    if (ok) id(spa_temp).publish_state(v);
+                  }
+                  p = strstr(text, "Air Temp");
+                  if (p) {
+                    p += 8; while (*p == ' ') p++;
+                    float v = 0; bool ok = false;
+                    while (*p >= '0' && *p <= '9') { v = v * 10.0f + float(*p++ - '0'); ok = true; }
+                    if (ok) id(air_temp).publish_state(v);
+                  }
+                } else if (strstr(text, "Chlorinator")) {
+                  const char *p;
+                  p = strstr(text, "Pool Chlorinator");
+                  if (p) {
+                    p += 16; while (*p == ' ') p++;
+                    float v = 0; bool ok = false;
+                    while (*p >= '0' && *p <= '9') { v = v * 10.0f + float(*p++ - '0'); ok = true; }
+                    if (ok) id(pool_chlorinator).publish_state(v);
+                  }
+                  p = strstr(text, "Spa Chlorinator");
+                  if (p) {
+                    p += 15; while (*p == ' ') p++;
+                    float v = 0; bool ok = false;
+                    while (*p >= '0' && *p <= '9') { v = v * 10.0f + float(*p++ - '0'); ok = true; }
+                    if (ok) id(spa_chlorinator).publish_state(v);
+                  }
+                } else if (strstr(text, "Salt Level")) {
+                  const char *p = strstr(text, "Salt Level");
+                  if (p) {
+                    p += 10; while (*p == ' ') p++;
+                    float v = 0; bool ok = false;
+                    while (*p >= '0' && *p <= '9') { v = v * 10.0f + float(*p++ - '0'); ok = true; }
+                    if (ok) id(salt_level).publish_state(v);
+                  }
+                } else if (strstr(text, "Filter Speed")) {
+                  const char *p = strstr(text, "Filter Speed");
+                  p += 12; while (*p == ' ') p++;
+                  id(filter_speed_text).publish_state(std::string(p));
+                }
+              }
+
 globals:
   - id: g_led_mask
+    type: uint32_t
+    initial_value: "0"
+  - id: g_led_blink
     type: uint32_t
     initial_value: "0"
 

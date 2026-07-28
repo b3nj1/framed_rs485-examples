@@ -9,6 +9,62 @@ All notable changes to the published configuration interface are documented here
 - **MINOR** — additive: a new profile file, a new optional substitution *with a default*, a new entity.
 - **PATCH** — decoder or bug fix with no interface change.
 
+## [3.1.0] - unreleased
+
+**Tested against:** `rs485_frame` component @ [`rs485_frame-20260728`](https://github.com/b3nj1/esphome/tree/rs485_frame-20260728),
+the first immutable component tag — see [CONTRIBUTING.md §9](CONTRIBUTING.md#9-external_components--staging-ref).
+None of this release's features (send monitoring, the LED blink mask, the `04 0A` decoder) require
+anything added on that particular tag; the pairing just records what every `external_components:`
+in this release now points at, instead of the floating `rs485_frame` branch. Earlier releases below
+predate this convention and are not retroactively paired with a component tag.
+
+### Added
+
+- **Send monitoring (confirm / failed) for `hayward/aqualogic/button.yaml`** (additive). Every
+  button now watches `04 0A` frames (a confirmed strict superset of `01 02`/`01 03`) and matches
+  its `confirm_led_bit` flipping to the expected state within `confirm_window_ms` of the press —
+  not merely "did anything change." Monitor only: no resend, matching the OEM remote's own
+  behavior of dropping sends rather than guessing. New optional substitutions, all with defaults
+  so existing includes keep compiling unchanged: `confirm_led_bit` (default `-1`, the sentinel for
+  "no confirmable bit yet" — nav keys, hardware-unverified AUX channels), `confirm_window_ms`
+  (default `300`), `confirm_disabled_by_default` (default `"true"`). New per-button entities
+  (disabled by default until the button's `confirm_led_bit` is hardware-verified): a "Confirmed"
+  counter and a "Failed" counter (the latter starts `disabled_by_default: true` unconditionally
+  for this release, independent of bit verification, since the 300 ms window itself is only
+  backed by n=7 samples so far).
+  - **New required substitution: `button_id`** (breaking for anyone who copies `button.yaml`'s
+    schema directly, though it ships with a placeholder default of `"unset"` so a lone include
+    still compiles). Every `button.yaml` include needs a unique `button_id` slug (e.g. `"filter"`,
+    `"aux_3"`) to give this release's per-button monitor state (globals) and counter sensors
+    distinct internal ids — the same requirement `led.yaml`'s `bit` var already has for its
+    per-instance binary sensor. All 19 `button.yaml` includes in `example-device.yaml` have been
+    updated with a unique `button_id`; the two keys directly exercised by the 2026-07-26
+    transmit-to-confirmation capture (Filter, Lights) are also given their real `confirm_led_bit`
+    and `confirm_disabled_by_default: "false"`. Bits in led.yaml's hardware-tested 0-8 range
+    (AUX 1, AUX 2, Valve 3) get their real `confirm_led_bit` with the counter left hidden by
+    default; everything else (nav keys, Pool Spa Mode's dual-bit selector, and the
+    community-sourced-only bits 9-25) is set explicitly to the `-1` sentinel. **Anyone who
+    copies these package files locally instead of using the pinned remote release must add
+    `button_id` (and ideally `confirm_led_bit`) to any of their own `button.yaml` includes this
+    file doesn't cover.**
+- **New file: `hayward/aqualogic/confirm-retry.yaml`** (additive, EXPERIMENTAL, opt-in). Resends a
+  button on its own "Failed" counter incrementing, up to `retry_max` (default `"1"`) consecutive
+  attempts, reusing button.yaml's monitor state rather than duplicating the confirm/fail
+  predicate. Carries a double-actuation warning in its header — Hayward keys are toggles, so
+  resending a press whose confirmation was merely late (not lost) flips the output back. Credits
+  the idea to `esphome_aqualogic`.
+- **LED blink mask, `hayward/aqualogic/bus.yaml` and `led.yaml`** (additive). The panel LED frame's
+  second 4-byte word (flashing state) is now read into a new `g_led_blink` global alongside the
+  existing solid-mask `g_led_mask`. New optional `led.yaml` substitution
+  `blink_disabled_by_default` (default `"true"`) and a new per-instance entity, `"<led_name>
+  Blinking"`, so users can expose e.g. bit 5 flashing (pump running at low speed) as a separate
+  binary_sensor. Existing includes keep compiling unchanged; the new entity is hidden by default.
+- **`04 0A` combined LED + display decoder, `hayward/aqualogic/bus.yaml`** (additive). New
+  `on_frame: [0x04, 0x0A]` handler decodes the tagged-container frame (decode_variations.md §5.4)
+  and publishes to the same shared globals/sensors as the existing `01 02`/`01 03` handlers, which
+  are unchanged and not migrated — `04 0A` is a proven strict superset that simply arrives first in
+  its cycle, so this is a faster-arriving duplicate path, not new entities.
+
 ## [3.0.1] - 2026-07-26
 
 ### Fixed
@@ -20,7 +76,7 @@ All notable changes to the published configuration interface are documented here
 
 ---
 
-## [3.0.0] - unreleased
+## [3.0.0] - 2026-06-16
 
 ### Changed
 
@@ -95,7 +151,7 @@ All notable changes to the published configuration interface are documented here
 
 ---
 
-## [1.0.0] - 2026-05-30
+## [1.0.0] - 2026-05-25
 
 Initial released interface. Restructured the monolithic per-controller YAMLs into composable
 [ESPHome `packages`](https://esphome.io/components/packages/): a per-family **bus package** plus one

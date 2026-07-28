@@ -141,31 +141,51 @@ Reading the table:
 
 ### Verifying the CRC by hand
 
-The sniffer captures the **full unescaped frame**: `frame_type` + data + the 2-byte CRC. The CRC is
-`sum16_big_endian header_inclusive`, i.e. the 16-bit sum of `DLE + STX + every byte shown except
-the trailing two`, emitted high byte first.
+> **Note on the payload tables above.** The `payloads` columns in Step 2/3 show `rx_payload_` — the
+> bytes an `on_frame:` lambda sees. Today that stops before the CRC (`rs485_frame.cpp:394`), so a
+> current capture would print two bytes fewer per row than shown above (e.g. `0101` would read
+> `01 01`, not `01 01 00 14`). The tables are kept as originally captured rather than re-run, but it
+> means they can no longer be hand-CRC-verified directly — the CRC bytes just are not in them.
 
-`0101` payload `01 01 00 14`:
-
-```
-0x10 + 0x02 + 0x01 + 0x01 + 0x00 = 0x14      CRC field = 00 14  ✓
-DLE    STX    └── frame + data ──┘            (big-endian 0x0014)
-```
-
-`0C01` payload `0C 01 00 00 00 1F`:
-
-```
-0x10 + 0x02 + 0x0C + 0x01 + 0x00 + 0x00 + 0x00 = 0x1F   CRC = 00 1F  ✓
-```
-
-`000C` payload `00 0C 00 00 00 00 00 00 1E`:
+To hand-verify a CRC you need the CRC bytes, and those only ever appear on the **TX side**. Enable
+`dump_frames: true` and the hub logs the complete frame it writes to the wire — `DLE STX
+<escaped payload> <escaped CRC> DLE ETX` — exactly as sent, with nothing stripped
+(`rs485_frame.cpp:602-606`). The example below is from a later capture of this same bus
+(`debug.040a.20260726.log`, taken during the send-monitoring work — the discovery/sniffer run above
+predates enabling `dump_frames`), logging a wireless-remote key command this device sent:
 
 ```
-0x10 + 0x02 + 0x00 + 0x0C + (six 0x00) = 0x1E           CRC = 00 1E  ✓
+[D][rs485_frame:605]: TX 100200830100010000000100000000981003
 ```
 
-When you write `on_frame:` lambdas, the hub has already stripped DLE/STX/ETX and the CRC, so your
-`payload[]` is just `frame_type + data` (`payload[0..1]` = frame type, data from `payload[2]`).
+Split into fields:
+
+```
+10 02   00 83 01 00 01 00 00 00 01 00 00 00   00 98   10 03
+DLE STX └──────────── payload (12 bytes) ────────────┘ CRC   DLE ETX
+```
+
+`sum16_big_endian header_inclusive` (`calculate_crc_()`, `rs485_frame.cpp:449-456`) sums
+`DLE + STX + every payload byte`, keeps the low 16 bits, and emits the result high byte first:
+
+```
+0x10 + 0x02                                       = 0x12
+     + 0x00 + 0x83 + 0x01                          = 0x96
+     + 0x00 + 0x01 + 0x00 + 0x00                   = 0x97
+     + 0x00 + 0x01 + 0x00 + 0x00 + 0x00             = 0x98
+
+sum = 0x0098  ->  CRC field = 00 98  ✓ matches the TX dump
+```
+
+A second frame from the same log, as a spot check: TX `1002008301020000000200000000009a1003` has
+payload `00 83 01 02 00 00 00 02 00 00 00 00`. Summing `DLE + STX +` that payload gives `0x9A`, i.e.
+`00 9A` — matches the frame's CRC field. Same method, different bytes.
+
+When you write `on_frame:` lambdas, `payload[]` is `frame_type + data` with DLE/STX/ETX, escapes,
+and the CRC already stripped (`payload[0..1]` = frame type for a 2-byte type, data from `payload[2]`
+onward) — that is what makes lambdas simple, at the cost of the CRC not being there to check by eye.
+`payload_dump_top` does not help here either — it dumps the same CRC-stripped `rx_payload_`. A TX
+dump via `dump_frames: true` is the only place the CRC bytes are logged.
 
 ## Step 3: Sniffer — with OEM wireless remote commands
 
@@ -200,6 +220,8 @@ What changed:
   key/state report. The 4th byte (`00`/`01`/`02`/`04`) tracks the key/state; the `C1`/`C2` byte
   near the end looks like a small rolling counter or source id — left as homework. CRC verifies as
   sum16_big_endian: e.g. `00 83 01 02 00 00 00 02 00 00 00 C1` sums (with DLE+STX) to `0x15B` = `01 5B`. ✓
+  (as-captured payload, trailing CRC included — see the caveat in
+  [Verifying the CRC by hand](#verifying-the-crc-by-hand))
 - **`040A` and `0103` are the display.** `0103` is the two-line display text; `040A` is a
   line/cell update carrying the same ASCII (`Settings`, `Lights`, `Aux2`, `Timers`, `Diagnostic`,
   `Configuration`, `Heater1`, `Air Temp 62_F`). As you scroll menus they cycle through many
@@ -210,6 +232,12 @@ What changed:
   length. Raise `payload_capture_bytes` if you want the full line plus its checksum.
 
 ## Version / ID frame `0x0004`
+
+> Same caveat as the [CRC section](#verifying-the-crc-by-hand) above: the payloads below were
+> captured before `rx_payload_` stopped including the trailing CRC bytes, so they are shown and
+> hand-verified as originally captured. A current sniffer capture of these frames would print two
+> fewer bytes per row (e.g. `00 04 CC 6D`, not `00 04 CC 6D 01 4F`); use a TX dump for a
+> hand-verifiable CRC today.
 
 Frame `0x0004` carries the firmware/ID strings that the controller also shows on its Diagnostic
 screen. Three distinct payloads appeared:

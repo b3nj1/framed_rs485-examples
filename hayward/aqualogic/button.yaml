@@ -12,6 +12,12 @@
 #   button_command  One or more hex values as an unquoted YAML list — the
 #                    value field(s) written back-to-back after the preamble.
 #                    Most buttons use the same value twice: [0x80000000, 0x80000000].
+#   button_id       Unique slug for THIS include (e.g. "filter", "aux_3"), used to build
+#                    unique internal ids for this button's monitor state (globals) and
+#                    its confirmed/failed counter sensors. Same requirement as led.yaml's
+#                    `bit` var: defaults to "unset" only so the substitution schema is
+#                    complete — every real call site must override it, or two button.yaml
+#                    includes left at the default will collide on the same internal ids.
 #
 # Optional vars:
 #   disabled_by_default  Whether to hide the entity in HA by default (default: "false").
@@ -21,6 +27,28 @@
 #                   Defaults to ${cmd_postamble}.
 #   btn_element_bytes  Value element width in bytes (default: ${cmd_element_bytes}, usually "4").
 #   btn_endian      Byte order: "big" or "little" (default: ${cmd_endian}).
+#
+#   confirm_led_bit  Bit position in the panel LED mask (see bus.yaml / led.yaml) that this
+#                    button's actuation should flip. Default: -1, the explicit sentinel for
+#                    "no confirmable bit yet" (nav keys, and any AUX channel whose bit
+#                    position is community-sourced but not hardware-verified — see AUX 3-14
+#                    in bus.yaml's LED comment and CLAUDE.md). When -1, the monitor lambdas
+#                    below no-op: no pending state is ever armed, and the confirmed/failed
+#                    counters stay at zero forever. Set this to a real, HARDWARE-VERIFIED bit
+#                    only — an unverified bit here would silently misattribute another
+#                    circuit's LED change as this button's confirmation.
+#   confirm_window_ms  Milliseconds after a press to wait for confirmation before counting
+#                    it as failed. Default: 300. This margin is a guess from n=7 transmits
+#                    (worst case observed 208 ms) — recalibrate here if your bus needs more.
+#   confirm_disabled_by_default  Whether the "Confirmed" counter is hidden in HA by default
+#                    (default: "true" — safe/conservative). Set to "false" only for buttons
+#                    whose confirm_led_bit has been verified against real hardware (this repo
+#                    currently verifies Filter, Lights, and the other bits the 2026-07-26
+#                    capture exercised — see decode_variations.md §5.4 and the capture log).
+#                    The "Failed" counter has NO such override: it starts disabled_by_default
+#                    "true" unconditionally for this release regardless of bit verification,
+#                    because the 300 ms confirm_window_ms margin itself is unverified pending
+#                    more data (n=7 samples) — see TODO.md's send-monitoring section.
 #
 # Command values confirmed from live bus captures and community reverse-engineering:
 #   Filter       0x80000000    Pool/Spa Mode  0x40000000
@@ -34,6 +62,34 @@
 # button_command: [0x80000000, 0x80000000]. For a long-press / hold pattern (e.g. unlocking
 # a menu by holding Left+Right), see the "Menu Unlock" example in example-device.yaml — it
 # pairs two button includes with independent values instead of repeating one.
+#
+# -----------------------------------------------------------------------------
+# Send monitoring (confirm / failed), accepted 2026-07-26 — monitor only, no resend.
+# -----------------------------------------------------------------------------
+# Every include of this file registers its OWN `on_frame: [0x04, 0x0A]` handler on the
+# shared `pool` hub (independent of bus.yaml's own `[0x01, 0x02]`/`[0x01, 0x03]` handlers —
+# the hub fires every matching on_frame trigger, not just the first, so this coexists
+# cleanly; see heater.yaml for the same shared-frame-type pattern). `04 0A` is used because
+# it is a confirmed strict superset of `01 02`/`01 03` (decode_variations.md §5.4): one
+# handler here sees every LED update, whichever screen shape the panel happens to be
+# cycling through.
+#
+# Mechanism: on `on_press`, this button captures the CURRENT state of its `confirm_led_bit`
+# and arms a per-button pending flag expecting the OPPOSITE state (Hayward keys are toggles).
+# Each subsequent `04 0A` frame with an LED block present is checked against that expected
+# bit — matching the EXPECTED CONTENT, not merely "did anything change" — until either the
+# bit flips as expected (confirmed) or `confirm_window_ms` elapses with no match (failed).
+# This state is per-button-instance (own globals, keyed by `button_id`), not a shared queue:
+# two buttons pressed within the same window each track their own outcome independently.
+#
+# Known false positive, documented rather than engineered around: a physical panel press on
+# the SAME circuit inside the confirmation window also flips the bit and will be recorded as
+# a confirm of this button's press, even though it was really the physical panel's doing.
+# Low probability, and the same weakness `esphome_aqualogic`'s own predicate has.
+#
+# Out of scope for v1 (see TODO.md): no resend/retry here (see the separate, opt-in,
+# experimental confirm-retry.yaml for that); no nav-key "likely"/"inconclusive" predicate
+# (deferred — depends on hardcoded, model-varying acknowledgment-screen text).
 # =============================================================================
 
 defaults:
@@ -43,9 +99,49 @@ defaults:
   btn_postamble: ${cmd_postamble}
   btn_element_bytes: ${cmd_element_bytes}
   btn_endian: ${cmd_endian}
+  button_id: "unset"
+  confirm_led_bit: -1
+  confirm_window_ms: 300
+  confirm_disabled_by_default: "true"
+
+globals:
+  # Per-button monitor state. Keyed by button_id so every include gets independent
+  # storage — see the header note on why button_id must be unique per call site.
+  - id: g_btn_pending_${button_id}
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+
+  - id: g_btn_expect_on_${button_id}
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+
+  - id: g_btn_press_ms_${button_id}
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+
+  # Plain counter, reset on reboot — see confirm_disabled_by_default above for its
+  # entity's visibility default.
+  - id: g_btn_confirmed_count_${button_id}
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+
+  # The one counter that survives reboot (restore_value: true). ESPHome's globals component
+  # implements this as a PollingComponent that checks every ~1 s (globals_component.h,
+  # RestoringGlobalsComponent), but its store_value_() only actually writes to flash when the
+  # value differs from the last-checked value — so a failure is durably persisted without a
+  # bespoke slow-interval flush of our own; it is not writing to flash on a dumb timer.
+  - id: g_btn_failed_count_${button_id}
+    type: uint32_t
+    restore_value: true
+    initial_value: '0'
 
 button:
   - platform: rs485_frame
+    id: btn_${button_id}
     rs485_frame_id: pool
     name: "${button_name}"
     value: ${button_command}
@@ -55,3 +151,83 @@ button:
       value_element_bytes: ${btn_element_bytes}
       endian: ${btn_endian}
       postamble: ${btn_postamble}
+    on_press:
+      - lambda: |-
+          // Arm the confirm/fail monitor. Sentinel: confirm_led_bit -1 means this
+          // button has no confirmable bit yet (nav key, or an AUX channel whose bit
+          // position isn't hardware-verified) -- no-op in that case.
+          if (${confirm_led_bit} < 0) return;
+          // confirm_led_bit is non-negative here; cast before shifting (see the
+          // on_frame handler below for why this avoids a negative-literal shift).
+          uint8_t bit_pos = static_cast<uint8_t>(${confirm_led_bit});
+          bool cur = bool(id(g_led_mask) & (1UL << bit_pos));
+          // Hayward keys are toggles: expect the bit to flip to the opposite state.
+          id(g_btn_expect_on_${button_id}) = !cur;
+          id(g_btn_press_ms_${button_id}) = millis();
+          id(g_btn_pending_${button_id}) = true;
+
+rs485_frame:
+  - id: !extend pool
+    on_frame:
+      # Send-monitoring confirm/fail predicate for THIS button only. See the file
+      # header for the full design (04 0A superset predicate, expected-content
+      # matching, per-button independent state, documented false-positive case).
+      - frame_type: [0x04, 0x0A]
+        then:
+          - lambda: |-
+              if (${confirm_led_bit} < 0) return;
+              if (!id(g_btn_pending_${button_id})) return;
+
+              // 04 0A container: payload[0..1]=frame_type, [2..3]=83 00 header,
+              // [4]=tag. Tag 0x02 carries an 8-byte LED mask (solid 4B LE + blink
+              // 4B LE) at payload[5..12], byte-identical to the 01 02 handler's
+              // payload[2..5] solid mask. The container has three shapes (LED-only,
+              // display-only, both) so a given 04 0A frame may not carry the LED
+              // block at all -- if so, just keep waiting for the next one.
+              if (payload.size() >= 13 && payload[4] == 0x02) {
+                uint32_t mask = uint32_t(payload[5]) | (uint32_t(payload[6]) << 8) |
+                                (uint32_t(payload[7]) << 16) | (uint32_t(payload[8]) << 24);
+                // confirm_led_bit is already known non-negative here (guarded above);
+                // cast to unsigned before shifting so this is never a negative-literal
+                // shift at compile time for a -1 (disabled) button on another instance.
+                uint8_t bit_pos = static_cast<uint8_t>(${confirm_led_bit});
+                bool bit_on = bool(mask & (1UL << bit_pos));
+                if (bit_on == id(g_btn_expect_on_${button_id})) {
+                  id(g_btn_pending_${button_id}) = false;
+                  id(g_btn_confirmed_count_${button_id})++;
+                  id(btn_confirmed_count_${button_id}).publish_state(id(g_btn_confirmed_count_${button_id}));
+                  return;
+                }
+              }
+
+              if (millis() - id(g_btn_press_ms_${button_id}) > (uint32_t)(${confirm_window_ms})) {
+                id(g_btn_pending_${button_id}) = false;
+                id(g_btn_failed_count_${button_id})++;
+                id(btn_failed_count_${button_id}).publish_state(id(g_btn_failed_count_${button_id}));
+              }
+
+sensor:
+  - platform: template
+    id: btn_confirmed_count_${button_id}
+    name: "${button_name} Confirmed"
+    entity_category: diagnostic
+    state_class: total_increasing
+    accuracy_decimals: 0
+    disabled_by_default: ${confirm_disabled_by_default}
+    # Counts 04 0A frames that matched confirm_led_bit's expected state within
+    # confirm_window_ms of this button's press. See file header for the mechanism
+    # and its documented same-circuit-physical-press false positive.
+
+  - platform: template
+    id: btn_failed_count_${button_id}
+    name: "${button_name} Failed"
+    entity_category: diagnostic
+    state_class: total_increasing
+    accuracy_decimals: 0
+    disabled_by_default: "true"
+    # Starts disabled_by_default true unconditionally for this release, regardless of
+    # confirm_led_bit verification -- confirm_window_ms's 300 ms margin is itself
+    # unverified pending more data (n=7 samples). Flip to enabled once there's more
+    # backing it, so a nonzero count reads as a real signal, not just a tight window.
+    # Backed by g_btn_failed_count_${button_id} (restore_value: true) so a rare
+    # failure survives an OTA/reboot.

@@ -1,0 +1,32 @@
+# =============================================================================
+# Hayward AquaLogic / ProLogic — sample Lovelace dashboard card
+# -----------------------------------------------------------------------------
+# Built against quickstart-waveshare.yaml's entity set (bus.yaml only -- no
+# equipment profiles), so it matches what you have right after your first
+# flash, before you've added any AUX/pump/heater packages. Uses only the
+# built-in Home Assistant "entities" card -- no HACS custom card. This project
+# has no runtime dependency beyond ESPHome and Home Assistant themselves, and
+# this dashboard keeps that true.
+#
+# Entity IDs below assume the default `name: aqualogic` substitution. If you
+# changed `name:` in your device config, replace the `aqualogic_` prefix with
+# your own device name (check Settings > Devices & Services > ESPHome > your
+# device for the exact IDs Home Assistant assigned).
+#
+# HOW TO USE
+#   Settings > Dashboards > (your dashboard) > Edit Dashboard > Add Card >
+#   Manual, then paste the card block below. Or, in a dashboard's YAML mode,
+#   paste it as one entry under a view's `cards:` list.
+# =============================================================================
+
+type: entities
+title: Pool Controller
+entities:
+  - entity: sensor.aqualogic_pool_temperature
+    name: Pool Temperature
+  - entity: sensor.aqualogic_air_temperature
+    name: Air Temperature
+  - entity: text_sensor.aqualogic_display
+    name: Display
+  - entity: text_sensor.aqualogic_display_blink
+    name: Display Blink

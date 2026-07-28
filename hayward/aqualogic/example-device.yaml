@@ -8,6 +8,12 @@
 #   - b3nj1 (@b3nj1)
 # =============================================================================
 #
+# Just want a fast turnkey start instead of this full menu? See
+# quickstart-waveshare.yaml (Waveshare ESP32-S3-RS485-CAN, tested) or
+# quickstart-discrete.yaml (bare devkit + separate RS485 adapter) — both are
+# core-entities-only and ~40 lines. Come back here once one of them is
+# flashed and reporting data, to add the equipment you have.
+#
 # HOW TO USE THIS FILE
 #   1. Copy it to your ESPHome configuration directory and rename it (the name
 #      becomes your device's hostname).
@@ -57,10 +63,12 @@ esphome:
   name: ${name}
   friendly_name: ${friendly_name}
 
-# ESP-IDF is recommended: it enables hardware RS485 half-duplex mode on the UART
-# peripheral, driving the DE/RE direction pin at the shift-register level without
-# software guard times. Arduino-framework users must use an auto-DE transceiver
-# chip (e.g. MAX13487, MAX22025) instead.
+# ESP-IDF is recommended for consistency with the rest of this file's tested settings, but
+# either framework drives DE/RE from hardware on ESP32: since ESPHome b8cee477fe, every ESP32
+# build (Arduino or ESP-IDF) uses IDFUARTComponent, which enables hardware RS485 half-duplex
+# mode on the UART peripheral and drives the DE/RE direction pin at the shift-register level
+# without software guard times. An auto-DE transceiver chip (e.g. MAX13487, MAX22025) is only
+# needed on ESP8266/RP2040, which do not drive flow_control_pin from hardware.
 esp32:
   board: ${board}
   framework:
@@ -77,7 +85,7 @@ wifi:
 # Temporary — while rs485_frame is unreleased this tracks the staging branch.
 # Remove this block entirely once rs485_frame ships in an official ESPHome release.
 external_components:
-  - source: github://b3nj1/esphome@rs485_frame
+  - source: github://b3nj1/esphome@rs485_frame-20260728
     components: [rs485_frame]
 
 # UART — Hayward AquaLogic / ProLogic: 19200 baud, 8N2; fixed by protocol.
@@ -165,85 +173,117 @@ packages:
         vars: { bit: 25, led_name: "Super Chlorinate", device_class: running, disabled_by_default: "true" }
 
       # --- Buttons — rename labels to match your load; remove buttons your panel lacks. ---
+      # button_id must be unique per include (see button.yaml's header) -- it keys this
+      # release's per-button send-monitoring state (confirm/failed counters). confirm_led_bit
+      # is the panel LED bit (see bus.yaml's table) this button's actuation should flip; -1 is
+      # the explicit sentinel for "no confirmable bit" (nav keys) or "bit position not verified
+      # against real hardware" (see led.yaml: bits 0-8 are proj hw-tested, 9-25 are
+      # community-sourced only per swilson/smith288/ChaseDurand, not hw-tested by this project).
+      # confirm_disabled_by_default is only set to "false" for Filter and Lights below -- the
+      # two keys the 2026-07-26 debug.040a.20260726.log capture directly exercised end-to-end
+      # (see TODO.md's send-monitoring section and AGENT_MEMORY_ARCHIVE.md's 2026-07-26 entry).
+      #
+      # Want automatic resend when a button's "Failed" counter increments (e.g. Filter or
+      # Lights below, since those are the two with confirm monitoring enabled by default)?
+      # See the separate, opt-in, EXPERIMENTAL hayward/aqualogic/confirm-retry.yaml -- it has a
+      # double-actuation warning you should read before enabling it.
+      #
       # Navigation and mode: active by default on every panel.
       - path: hayward/aqualogic/button.yaml
-        vars: { button_name: "Filter", button_command: [0x80000000, 0x80000000] }
+        vars: { button_name: "Filter", button_command: [0x80000000, 0x80000000], button_id: "filter", confirm_led_bit: 5, confirm_disabled_by_default: "false" }
       - path: hayward/aqualogic/button.yaml
-        vars: { button_name: "Pool Spa Mode", button_command: [0x40000000, 0x40000000] }
+        # Toggles between the Pool-Mode (bit 3) and Spa-Mode (bit 4) LEDs -- a select between
+        # two different bits, not one bit flipping to its opposite. button.yaml's monitor
+        # models a single-bit toggle, so this doesn't fit; left at the -1 sentinel.
+        vars: { button_name: "Pool Spa Mode", button_command: [0x40000000, 0x40000000], button_id: "pool_spa_mode", confirm_led_bit: -1 }
       - path: hayward/aqualogic/button.yaml
-        vars: { button_name: "Plus", button_command: [0x20000000, 0x20000000] }
+        vars: { button_name: "Plus", button_command: [0x20000000, 0x20000000], button_id: "plus", confirm_led_bit: -1 }
       - path: hayward/aqualogic/button.yaml
-        vars: { button_name: "Minus", button_command: [0x10000000, 0x10000000] }
+        vars: { button_name: "Minus", button_command: [0x10000000, 0x10000000], button_id: "minus", confirm_led_bit: -1 }
       - path: hayward/aqualogic/button.yaml
-        vars: { button_name: "Menu", button_command: [0x02000000, 0x02000000] }
+        vars: { button_name: "Menu", button_command: [0x02000000, 0x02000000], button_id: "menu", confirm_led_bit: -1 }
       - path: hayward/aqualogic/button.yaml
-        vars: { button_name: "Right", button_command: [0x01000000, 0x01000000] }
+        vars: { button_name: "Right", button_command: [0x01000000, 0x01000000], button_id: "right", confirm_led_bit: -1 }
       - path: hayward/aqualogic/button.yaml
-        vars: { button_name: "Left", button_command: [0x04000000, 0x04000000] }
+        vars: { button_name: "Left", button_command: [0x04000000, 0x04000000], button_id: "left", confirm_led_bit: -1 }
       - path: hayward/aqualogic/button.yaml
-        vars: { button_name: "Lights", button_command: [0x00010000, 0x00010000] }
+        vars: { button_name: "Lights", button_command: [0x00010000, 0x00010000], button_id: "lights", confirm_led_bit: 6, confirm_disabled_by_default: "false" }
       # Menu Unlock — Hayward unlocks setup menus by holding Left+Right for several seconds,
       # not a quick press. Two buttons bracket the hold instead of one: "Start" sets the
       # Left+Right bits with nothing released (held), "End" releases them. Press Start, wait
       # a few seconds, then press End.
       # - path: hayward/aqualogic/button.yaml
-      #   vars: { button_name: "Menu Unlock Start", button_command: [0x05000000, 0x00000000] }
+      #   vars: { button_name: "Menu Unlock Start", button_command: [0x05000000, 0x00000000], button_id: "menu_unlock_start", confirm_led_bit: -1 }
       # - path: hayward/aqualogic/button.yaml
-      #   vars: { button_name: "Menu Unlock End", button_command: [0x00000000, 0x05000000] }
+      #   vars: { button_name: "Menu Unlock End", button_command: [0x00000000, 0x05000000], button_id: "menu_unlock_end", confirm_led_bit: -1 }
       # Service — wired local frame (0x0002), no postamble. Disabled by default:
       # maintenance use only; most users should not trigger this accidentally.
+      # LED bit 9 (Service) is community-sourced only (not proj hw-tested), so confirm_led_bit
+      # stays at the -1 sentinel until someone verifies it against real hardware.
       - path: hayward/aqualogic/button.yaml
         vars:
           button_name: "Service"
           button_command: [0x08000000, 0x08000000]
+          button_id: "service"
+          confirm_led_bit: -1
           disabled_by_default: "true"
           btn_preamble: [0x00, 0x02]   # wired local frame type — unquoted list
           btn_postamble: []
           btn_element_bytes: "4"
           btn_endian: "big"
       # System Off — always wireless regardless of hub role.
+      # LED bit 16 (System Off) is community-sourced only (not proj hw-tested), so
+      # confirm_led_bit stays at the -1 sentinel until someone verifies it against real hardware.
       - path: hayward/aqualogic/button.yaml
         vars:
           button_name: "System Off"
           button_command: [0x08000000, 0x08000000]
+          button_id: "system_off"
+          confirm_led_bit: -1
           btn_preamble: [0x00, 0x83, 0x01]   # wireless — do not change
           btn_postamble: [0x00]
           btn_element_bytes: "4"
           btn_endian: "big"
       # AUX relays and valves — disabled by default; enable in HA Settings > Entities.
       # Rename labels to match your load (e.g. "Pool Light", "Spa Jets", "Booster Pump").
-      # AUX 1-2 hardware-tested. AUX 3-7 confirmed by swilson + smith288, not hw-tested.
+      # AUX 1-2 hardware-tested (bits 7-8, in led.yaml's proj-hw-tested 0-8 range) -- their
+      # confirm_led_bit is set to that real bit, but confirm_disabled_by_default is left at its
+      # default ("true") since neither was exercised by the 2026-07-26 confirm/fail capture.
+      # AUX 3-7 (bits 10-13, 17) are confirmed by swilson + smith288 only, not hw-tested --
+      # confirm_led_bit stays at the -1 sentinel until someone verifies these against hardware.
       - path: hayward/aqualogic/button.yaml
-        vars: { button_name: "AUX 1", button_command: [0x00020000, 0x00020000], disabled_by_default: "true" }
+        vars: { button_name: "AUX 1", button_command: [0x00020000, 0x00020000], button_id: "aux_1", confirm_led_bit: 7, disabled_by_default: "true" }
       - path: hayward/aqualogic/button.yaml
-        vars: { button_name: "AUX 2", button_command: [0x00040000, 0x00040000], disabled_by_default: "true" }
+        vars: { button_name: "AUX 2", button_command: [0x00040000, 0x00040000], button_id: "aux_2", confirm_led_bit: 8, disabled_by_default: "true" }
       - path: hayward/aqualogic/button.yaml
-        vars: { button_name: "AUX 3", button_command: [0x00080000, 0x00080000], disabled_by_default: "true" }
+        vars: { button_name: "AUX 3", button_command: [0x00080000, 0x00080000], button_id: "aux_3", confirm_led_bit: -1, disabled_by_default: "true" }
       - path: hayward/aqualogic/button.yaml
-        vars: { button_name: "AUX 4", button_command: [0x00100000, 0x00100000], disabled_by_default: "true" }
+        vars: { button_name: "AUX 4", button_command: [0x00100000, 0x00100000], button_id: "aux_4", confirm_led_bit: -1, disabled_by_default: "true" }
       - path: hayward/aqualogic/button.yaml
-        vars: { button_name: "AUX 5", button_command: [0x00200000, 0x00200000], disabled_by_default: "true" }
+        vars: { button_name: "AUX 5", button_command: [0x00200000, 0x00200000], button_id: "aux_5", confirm_led_bit: -1, disabled_by_default: "true" }
       - path: hayward/aqualogic/button.yaml
-        vars: { button_name: "AUX 6", button_command: [0x00400000, 0x00400000], disabled_by_default: "true" }
+        vars: { button_name: "AUX 6", button_command: [0x00400000, 0x00400000], button_id: "aux_6", confirm_led_bit: -1, disabled_by_default: "true" }
       - path: hayward/aqualogic/button.yaml
-        vars: { button_name: "AUX 7", button_command: [0x00800000, 0x00800000], disabled_by_default: "true" }
+        vars: { button_name: "AUX 7", button_command: [0x00800000, 0x00800000], button_id: "aux_7", confirm_led_bit: -1, disabled_by_default: "true" }
       # AUX 8-14: command bytes are in an unusual byte position; swilson source only,
       # no independent wire-capture confirmation. Keep commented until hw-tested.
       # - path: hayward/aqualogic/button.yaml
-      #   vars: { button_name: "AUX 8",  button_command: [0x00000800, 0x00000800], disabled_by_default: "true" }
+      #   vars: { button_name: "AUX 8",  button_command: [0x00000800, 0x00000800], button_id: "aux_8", confirm_led_bit: -1, disabled_by_default: "true" }
       # - path: hayward/aqualogic/button.yaml
-      #   vars: { button_name: "AUX 9",  button_command: [0x00001000, 0x00001000], disabled_by_default: "true" }
+      #   vars: { button_name: "AUX 9",  button_command: [0x00001000, 0x00001000], button_id: "aux_9", confirm_led_bit: -1, disabled_by_default: "true" }
       # - path: hayward/aqualogic/button.yaml
-      #   vars: { button_name: "AUX 10", button_command: [0x00002000, 0x00002000], disabled_by_default: "true" }
+      #   vars: { button_name: "AUX 10", button_command: [0x00002000, 0x00002000], button_id: "aux_10", confirm_led_bit: -1, disabled_by_default: "true" }
       # - path: hayward/aqualogic/button.yaml
-      #   vars: { button_name: "AUX 11", button_command: [0x00004000, 0x00004000], disabled_by_default: "true" }
+      #   vars: { button_name: "AUX 11", button_command: [0x00004000, 0x00004000], button_id: "aux_11", confirm_led_bit: -1, disabled_by_default: "true" }
       # - path: hayward/aqualogic/button.yaml
-      #   vars: { button_name: "AUX 12", button_command: [0x00008000, 0x00008000], disabled_by_default: "true" }
+      #   vars: { button_name: "AUX 12", button_command: [0x00008000, 0x00008000], button_id: "aux_12", confirm_led_bit: -1, disabled_by_default: "true" }
       # - path: hayward/aqualogic/button.yaml
-      #   vars: { button_name: "AUX 13", button_command: [0x00000001, 0x00000001], disabled_by_default: "true" }
+      #   vars: { button_name: "AUX 13", button_command: [0x00000001, 0x00000001], button_id: "aux_13", confirm_led_bit: -1, disabled_by_default: "true" }
       # - path: hayward/aqualogic/button.yaml
-      #   vars: { button_name: "AUX 14", button_command: [0x00000002, 0x00000002], disabled_by_default: "true" }
+      #   vars: { button_name: "AUX 14", button_command: [0x00000002, 0x00000002], button_id: "aux_14", confirm_led_bit: -1, disabled_by_default: "true" }
+      # Valve 3 (bit 1) is hardware-tested (led.yaml's proj-hw-tested 0-8 range); Valve 4
+      # (bit 14) is community-sourced only -- confirm_led_bit stays at the -1 sentinel there.
       - path: hayward/aqualogic/button.yaml
-        vars: { button_name: "Valve 3", button_command: [0x00000100, 0x00000100], disabled_by_default: "true" }
+        vars: { button_name: "Valve 3", button_command: [0x00000100, 0x00000100], button_id: "valve_3", confirm_led_bit: 1, disabled_by_default: "true" }
       - path: hayward/aqualogic/button.yaml
-        vars: { button_name: "Valve 4", button_command: [0x00000200, 0x00000200], disabled_by_default: "true" }
+        vars: { button_name: "Valve 4", button_command: [0x00000200, 0x00000200], button_id: "valve_4", confirm_led_bit: -1, disabled_by_default: "true" }

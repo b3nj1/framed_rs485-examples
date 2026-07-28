@@ -12,6 +12,14 @@
 # Optional vars:
 #   device_class        HA device class (default: running).
 #   disabled_by_default Whether to hide the entity in HA by default (default: "false").
+#   blink_disabled_by_default
+#                        Whether to hide the optional "<led_name> Blinking" binary
+#                        sensor (default: "true" -- opt in via HA Settings > Entities).
+#                        Reads g_led_blink (populated by bus.yaml's [0x01,0x02] and
+#                        [0x04,0x0A] handlers); bit 5 flashing means the pump is
+#                        running at low speed (see below). Additive -- existing
+#                        includes get this disabled entity automatically but no
+#                        change in visible/reported behavior.
 #
 # Known bit assignments (confirmed: swilson, smith288, ChaseDurand; proj hw-tested 0-8):
 #   0  Heater Active     6  Lights      13  AUX 6      20  AUX 10
@@ -32,6 +40,7 @@ defaults:
   led_name: "LED 0"
   device_class: running
   disabled_by_default: "false"
+  blink_disabled_by_default: "true"
 
 binary_sensor:
   - platform: template
@@ -40,7 +49,16 @@ binary_sensor:
     device_class: ${device_class}
     disabled_by_default: ${disabled_by_default}
 
+  # Optional blink arm: exposes whether this bit is currently flashing, not just
+  # solid. Disabled by default -- enable in HA Settings > Entities to opt in.
+  - platform: template
+    id: led_bit_${bit}_blink
+    name: "${led_name} Blinking"
+    disabled_by_default: ${blink_disabled_by_default}
+
 interval:
   - interval: 100ms
     then:
-      - lambda: "id(led_bit_${bit})->publish_state(bool(id(g_led_mask) & (1UL << ${bit})));"
+      - lambda: |-
+          id(led_bit_${bit})->publish_state(bool(id(g_led_mask) & (1UL << ${bit})));
+          id(led_bit_${bit}_blink)->publish_state(bool(id(g_led_blink) & (1UL << ${bit})));

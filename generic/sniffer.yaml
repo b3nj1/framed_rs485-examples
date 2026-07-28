@@ -31,7 +31,7 @@ wifi:
 
 # Remove this block once rs485_frame is included in an official ESPHome release.
 external_components:
-  - source: github://b3nj1/esphome@rs485_frame
+  - source: github://b3nj1/esphome@rs485_frame-20260728
     components: [rs485_frame]
 
 uart:
@@ -62,5 +62,15 @@ rs485_frame:
   sniffer_stats:
     interval: 30s
     max_frame_types: 64       # ceiling — Hayward typically uses < 10
-    payload_dump_top: 20      # log hex+ASCII of every captured payload for top 8 frame types
+    # payload_dump_top's ESP_LOGI dump is not free: it measured a 73 ms RX-path stall on real
+    # hardware, enough to split a frame (Intra-frame timeout right after). Fine for a capture
+    # session, but keep it 0 in production and don't trust timing measurements taken while it's
+    # firing. dump_frames: true has no such cost (790 frames / 59 s, zero stalls measured) — use
+    # dump_frames for timing work instead.
+    payload_dump_top: 20      # log hex+ASCII of every captured payload for top 20 frame types
     reference_frame_type: [0x01, 0x01]   # keep-alive
+    # On a display bus, bit 7 of each character byte is often a blink/inverse flag (e.g.
+    # Hayward), not part of the character. Uncomment so the payload preview's ASCII column
+    # shows the underlying character instead of '.' wherever that bit is set. The hex column
+    # (what decoders actually read) is unaffected either way.
+    # ascii_strip_high_bit: true

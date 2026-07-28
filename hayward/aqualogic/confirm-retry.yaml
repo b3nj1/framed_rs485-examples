@@ -1,0 +1,74 @@
+# =============================================================================
+# Hayward AquaLogic / ProLogic — EXPERIMENTAL opt-in resend on confirm failure
+# -----------------------------------------------------------------------------
+# Status: EXPERIMENTAL. Not part of the base send-monitoring feature (button.yaml)
+# and not included by example-device.yaml by default -- add it yourself, per button,
+# only where you have specific evidence of bus contention.
+#
+# WARNING -- DOUBLE-ACTUATION RISK. Hayward keys are toggles. The base monitor's
+# "failed" outcome means "no matching LED confirmation arrived within the window" --
+# it does NOT prove the original press was lost. If the original press actually landed
+# and only its confirmation was late (bus busy, another RS485 master transmitting in
+# the same post-keep-alive window -- see AndreiR, forum post 630), a resend flips the
+# relay/output right back to its PREVIOUS state. This is why the base monitor
+# (button.yaml) never resends by default, and matches the OEM remote's own behavior
+# of dropping sends and leaving recovery to the user rather than guessing. Only enable
+# this file for a button where you have specific evidence of contention on YOUR bus --
+# not as a general "make it more reliable" switch.
+#
+# This file does not duplicate the confirm/fail predicate. It wraps button.yaml's own
+# monitor state and hooks its outcome: it presses the SAME button again when that
+# button's "Failed" counter (btn_failed_count_${button_id}) increments, up to
+# retry_max times, and resets that budget once a "Confirmed" is seen. The confirm
+# window, expected-content matching, per-button independent state, and the physical-
+# panel-press false-positive are all button.yaml's -- see that file's header.
+#
+# Credit: resending on a missed confirmation is the same idea used by the
+# esphome_aqualogic project (a complementary, AquaLogic-specific project -- see
+# CLAUDE.md's tone note); this file demonstrates it against rs485_frame's own monitor.
+#
+# Required vars:
+#   button_id   Must be the SAME button_id given to the button.yaml include this file
+#               is retrying -- it reuses that include's globals and counter sensors by
+#               id, it does not create its own button or monitor state.
+#
+# Optional vars:
+#   retry_max   Maximum consecutive automatic resends before giving up until the next
+#               confirmed press (default: "1"). Once retry_max resends have all also
+#               failed, this stops retrying that button until a "Confirmed" is seen
+#               again -- it fails toward "acts like the base monitor" (no further
+#               actuation), never toward an unbounded retry loop.
+#
+# Usage: include this file once per button.yaml include you want retried, with the
+# same button_id, e.g.:
+#   - path: hayward/aqualogic/button.yaml
+#     vars: { button_name: "Filter", button_command: [0x80000000, 0x80000000],
+#             button_id: "filter", confirm_led_bit: 5, confirm_disabled_by_default: "false" }
+#   - path: hayward/aqualogic/confirm-retry.yaml
+#     vars: { button_id: "filter" }
+# =============================================================================
+
+defaults:
+  button_id: "unset"
+  retry_max: "1"
+
+globals:
+  # Consecutive-retry budget for this button_id. Reset to 0 on a confirmed press;
+  # capped at retry_max on repeated failures so this can never loop unboundedly.
+  - id: g_btn_retry_count_${button_id}
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+
+sensor:
+  - id: !extend btn_confirmed_count_${button_id}
+    on_value:
+      - lambda: |-
+          id(g_btn_retry_count_${button_id}) = 0;
+
+  - id: !extend btn_failed_count_${button_id}
+    on_value:
+      - lambda: |-
+          if (id(g_btn_retry_count_${button_id}) >= (uint32_t)(${retry_max})) return;
+          id(g_btn_retry_count_${button_id})++;
+          id(btn_${button_id}).press();

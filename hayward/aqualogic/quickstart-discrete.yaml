@@ -1,0 +1,88 @@
+# =============================================================================
+# Hayward AquaLogic / ProLogic — quickstart: bare devkit + MAX485 module
+# -----------------------------------------------------------------------------
+# Status:      tested-on-hardware (bus.yaml decode path); board/pins below are
+#              placeholders -- fill in your own devkit and adapter wiring.
+# Tested on:   Hayward AquaLogic / ProLogic; decode path shared with
+#              quickstart-waveshare.yaml's tested Waveshare config
+#
+# Contributors:
+#   - b3nj1 (@b3nj1)
+# =============================================================================
+# Turnkey config for a bare ESP32 devkit wired to a separate RS485 TTL adapter
+# (e.g. MAX485) -- wiring: README Hardware section, generic board table. A
+# bare devkit has no fixed GPIO convention the way the Waveshare board does,
+# so board/pins below are placeholders, not tested values. Core entities
+# only -- temperatures, display, diagnostics (plus Home Assistant's own
+# automatic API online/offline indicator; no separate bus-connectivity entity
+# is defined) -- no equipment profiles, no commented menu. Once this flashes
+# and reports data, add the equipment you have from
+# hayward/aqualogic/example-device.yaml, the full commented menu.
+# Waveshare ESP32-S3-RS485-CAN board instead? See quickstart-waveshare.yaml --
+# board and pins are fixed there rather than placeholders.
+
+substitutions:
+  name: aqualogic
+  friendly_name: AquaLogic
+  board: BOARDXX             # any ESP32 with two UARTs; see https://esphome.io/components/esp32
+  tx_pin: GPIOXX             # if no data received, try swapping tx_pin and rx_pin
+  rx_pin: GPIOXX
+  flow_control_pin: GPIOXX   # DE/RE direction pin; delete this substitution and
+                             # the flow_control_pin line below if your adapter
+                             # auto-manages direction
+  # Transmit role -- wireless is the recommended default (never collides with
+  # the physical main panel's own keypress traffic). See hayward/aqualogic/
+  # bus.yaml for the other roles (wired remote, wired local).
+  cmd_preamble: [0x00, 0x83, 0x01]
+  cmd_postamble: [0x00]
+  cmd_element_bytes: "4"
+  cmd_endian: "big"
+  temp_unit: "°F"             # set to "°C" (and temp_unit_short below to "C") for Celsius
+  temp_unit_short: "F"
+
+esphome:
+  name: ${name}
+  friendly_name: ${friendly_name}
+
+# ESP-IDF enables hardware RS485 half-duplex mode on the UART peripheral,
+# driving the DE/RE direction pin at the shift-register level. Under Arduino
+# your adapter must be an auto-DE transceiver (e.g. MAX13487, MAX22025).
+esp32:
+  board: ${board}
+  framework:
+    type: esp-idf
+
+logger:
+api:
+ota:
+  platform: esphome
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+# Temporary -- while rs485_frame is unreleased this tracks the staging branch.
+# Remove this block entirely once rs485_frame ships in an official ESPHome release.
+external_components:
+  - source: github://b3nj1/esphome@rs485_frame-20260728
+    components: [rs485_frame]
+
+# UART -- Hayward AquaLogic / ProLogic: 19200 baud, 8N2; fixed by protocol.
+uart:
+  id: pool_uart
+  tx_pin: ${tx_pin}
+  rx_pin: ${rx_pin}
+  baud_rate: 19200
+  data_bits: 8
+  parity: NONE
+  stop_bits: 2
+  rx_buffer_size: 512
+  flow_control_pin: ${flow_control_pin}
+
+packages:
+  rs485:
+    url: https://github.com/b3nj1/rs485_frame-examples
+    ref: v3.0.1          # PINNED release tag -- bump deliberately to update (see README)
+    refresh: 1d
+    files:
+      # Required -- core sensors (temperatures, display), diagnostics, panel LED mask.
+      - hayward/aqualogic/bus.yaml
