@@ -3,7 +3,7 @@
 # -----------------------------------------------------------------------------
 # Status:      tested-on-hardware
 # Tested on:   Hayward AquaLogic / ProLogic with variable-speed pump; ESP32-S3;
-#              ESPHome 2026.6.0-dev; rs485_frame @ github://b3nj1/esphome@rs485_frame-20260728
+#              ESPHome 2026.6.0-dev; rs485_frame @ github://b3nj1/esphome@v3.1.0
 # Bus:         19200 baud, 8N2  (see bus.yaml)
 # Owns frames: [0x0c,0x01] commanded speed; [0x00,0x0c] pump power report
 # Offsets:     payload-relative — payload[0..1] = frame_type, data starts at payload[2]

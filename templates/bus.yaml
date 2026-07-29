@@ -26,7 +26,7 @@
 # concatenate when set in two places.
 # The uart: block belongs in the device config (id: <hub_id>_uart), not here.
 #
-# The `external_components:` block (github://b3nj1/esphome@rs485_frame-20260728) belongs in
+# The `external_components:` block (github://b3nj1/esphome@v3.1.0) belongs in
 # the example-device.yaml, NOT here. Users cannot override a package's
 # external_components, and the block will be deleted once rs485_frame is upstream.
 

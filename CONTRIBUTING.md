@@ -283,16 +283,22 @@ active fixes; `github://b3nj1/esphome@rs485_frame` in a shipped example would le
 different component code with no change on the examples side, which is exactly the `refresh:`
 surprise §8a guardrail 1 exists to prevent. Instead:
 
-1. When cutting an examples release whose package files depend on component-side behavior, commit
-   the component changes on the fork's `rs485_frame` branch, then tag that commit
-   `rs485_frame-<YYYYMMDD>` (date of the tag, not necessarily the release) and push both the branch
-   and the tag.
+1. **The component fork uses the same `vX.Y.Z` name as this repo's own release** — not a separate
+   date-stamped scheme. When a `rs485_frame-examples` release depends on component-side behavior,
+   the component fork gets tagged the same version number as the examples release it pairs with
+   (e.g. examples `v3.1.0` pairs with component `v3.1.0`), even though the two repos' commit
+   histories are otherwise unrelated. Cut the component tag from the fork's `rs485_frame` branch.
 2. Point every `external_components: source:` at that tag, not the branch. Grep
-   `b3nj1/esphome@rs485_frame` across the repo before tagging a release and bump every hit.
+   `b3nj1/esphome@rs485_frame` (excluding the `v` tag form) across the repo before tagging a
+   release and bump every hit.
 3. State the pairing in `CHANGELOG.md`: which component tag a given examples release was tested
    against (see §8a's changelog format). A capture doc's "software versions used" table is an
    exception — it documents what was actually running at capture time and should not be rewritten
    to point at a tag that didn't exist yet.
+4. **Real-hardware RC testing before either tag is treated as released**, and keeping development
+   churn off the public `rs485_frame` (component) and `main` (examples) branches via
+   `rs485_frame_<feature>` branches, are both process, not versioning policy — see the workspace
+   `CLAUDE.md`'s multi-repo tag/commit workflow for the full mechanics.
 
 ## 10. UNTESTED policy
 

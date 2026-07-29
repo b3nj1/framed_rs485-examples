@@ -3,7 +3,7 @@
 # -----------------------------------------------------------------------------
 # Status:      tested-on-hardware
 # Tested on:   Hayward AquaLogic / ProLogic with gas/heat-pump heater; ESP32-S3;
-#              ESPHome 2026.6.0-dev; rs485_frame @ github://b3nj1/esphome@rs485_frame-20260728
+#              ESPHome 2026.6.0-dev; rs485_frame @ github://b3nj1/esphome@v3.1.0
 # Bus:         19200 baud, 8N2  (see bus.yaml)
 # Owns frames: [0x01,0x02] bit 0 (heater active LED); [0x01,0x03] heater-mode latch
 #              (decode_variations.md §5.7)

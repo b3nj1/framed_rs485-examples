@@ -11,12 +11,15 @@ All notable changes to the published configuration interface are documented here
 
 ## [3.1.0] - unreleased
 
-**Tested against:** `rs485_frame` component @ [`rs485_frame-20260728`](https://github.com/b3nj1/esphome/tree/rs485_frame-20260728),
-the first immutable component tag — see [CONTRIBUTING.md §9](CONTRIBUTING.md#9-external_components--staging-ref).
-None of this release's features (send monitoring, the LED blink mask, the `04 0A` decoder) require
-anything added on that particular tag; the pairing just records what every `external_components:`
-in this release now points at, instead of the floating `rs485_frame` branch. Earlier releases below
-predate this convention and are not retroactively paired with a component tag.
+**Tested against:** `rs485_frame` component @ [`v3.1.0`](https://github.com/b3nj1/esphome/tree/v3.1.0)
+— the component fork now uses the same `vX.Y.Z` tag name as this repo instead of a separate
+date-stamped scheme, per [CONTRIBUTING.md §9](CONTRIBUTING.md#9-external_components--staging-ref).
+Undergoing real-hardware RC testing as of this writing; see the workspace `CLAUDE.md`'s RC-testing
+process for what `-rcN` suffix is currently live. None of this release's features (send monitoring,
+the LED blink mask, the `04 0A` decoder) require anything added on that particular component tag;
+the pairing just records what every `external_components:` in this release now points at, instead
+of the floating `rs485_frame` branch. Earlier releases below predate this convention and are not
+retroactively paired with a component tag.
 
 ### Added
 
