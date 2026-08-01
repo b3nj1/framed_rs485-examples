@@ -9,6 +9,14 @@ All notable changes to the published configuration interface are documented here
 - **MINOR** — additive: a new profile file, a new optional substitution *with a default*, a new entity.
 - **PATCH** — decoder or bug fix with no interface change.
 
+## [3.0.2] - 2026-08-01
+
+### Fixed
+
+- aqualogic bug fix to v3.0.1: start payload at first character after frame type for display messages
+  without padding. Otherwise the first char was dropped.
+
+---
 ## [3.0.1] - 2026-07-26
 
 ### Fixed
@@ -125,6 +133,7 @@ Initial released interface. Restructured the monolithic per-controller YAMLs int
 - `generic/` discovery / sniffer / skeleton remain monolithic bootstrap tools (exempt from the
   package structure) with header notes pointing at it for real integrations.
 
+[3.0.2]: https://github.com/b3nj1/rs485_frame-examples/compare/v3.0.1...v3.0.2
 [3.0.1]: https://github.com/b3nj1/rs485_frame-examples/compare/v3.0.0...v3.0.1
 [3.0.0]: https://github.com/b3nj1/rs485_frame-examples/compare/v2.0.0...v3.0.0
 [2.0.0]: https://github.com/b3nj1/rs485_frame-examples/compare/v1.0.0...v2.0.0

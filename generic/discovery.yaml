@@ -46,7 +46,7 @@ wifi:
 
 # Remove this block once rs485_frame is included in an official ESPHome release.
 external_components:
-  - source: github://b3nj1/esphome@rs485_frame
+  - source: github://b3nj1/esphome@v3.0.2
     components: [rs485_frame]
 
 # Set baud/parity/stop bits to match your bus. If you do not know the baud rate, let discovery

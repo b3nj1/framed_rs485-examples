@@ -51,7 +51,7 @@ wifi:
 # Temporary -- while rs485_frame is unreleased this tracks the staging branch.
 # Remove this block entirely once rs485_frame ships in an official ESPHome release.
 external_components:
-  - source: github://b3nj1/esphome@rs485_frame
+  - source: github://b3nj1/esphome@v3.0.2
     components: [rs485_frame]
 
 uart:

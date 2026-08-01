@@ -3,7 +3,7 @@
 # -----------------------------------------------------------------------------
 # Status:      tested-on-hardware
 # Tested on:   Hayward AquaLogic / ProLogic; ESP32-S3; ESPHome 2026.6.0-dev;
-#              rs485_frame @ github://b3nj1/esphome@rs485_frame
+#              rs485_frame @ github://b3nj1/esphome@v3.0.2
 # Bus:         19200 baud, 8N2
 # Owns frames: gate [0x01,0x01]; value frames per command_format (wireless
 #              [0x00,0x83,0x01] by default); decodes panel LEDs [0x01,0x02] and
@@ -155,7 +155,7 @@ rs485_frame:
               // Blinking text: extract only bytes that had bit 7 set.
               uint8_t blen = 0;
               bool isblink = false;
-              for (size_t i = 3; i < payload.size() && tlen < (BUF_LEN-2); i++) {
+              for (size_t i = 2; i < payload.size() && tlen < (BUF_LEN-2); i++) {
                 uint8_t b = payload[i];
                 isblink = bool(b > 0x7F);
                 b &= 0x7f;
