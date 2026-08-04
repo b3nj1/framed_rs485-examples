@@ -34,6 +34,11 @@
 # button_command: [0x80000000, 0x80000000]. For a long-press / hold pattern (e.g. unlocking
 # a menu by holding Left+Right), see the "Menu Unlock" example in example-device.yaml — it
 # pairs two button includes with independent values instead of repeating one.
+#
+# Legacy firmware (main board v2.85 and similar) note: menu/display-centric buttons above
+# (Service, Plus, Minus, Lights, Menu, Left, Right) may need btn_element_bytes: "2" with the
+# value truncated to its top 2 bytes instead of the 4-byte values above — see the worked
+# table and citation in example-device.yaml's button section.
 # =============================================================================
 
 defaults:
