@@ -9,6 +9,31 @@ All notable changes to the published configuration interface are documented here
 - **MINOR** — additive: a new profile file, a new optional substitution *with a default*, a new entity.
 - **PATCH** — decoder or bug fix with no interface change.
 
+## [3.2.0] - 2026-08-04
+
+### Added
+
+- **`hayward/aqualogic/bus.yaml`: row-split display view.** New `display_cols` substitution
+  (default `20`, matching this repo's own hardware-verified 2x20 captures) and four new template
+  text sensors, `Display Row 1`-`Row 4` (rows 3/4 disabled by default), splitting the existing
+  `Display` sensor's text into LCD-width rows instead of one concatenated line. The existing
+  `Display`/`Display Blink` sensors and the temperature/chlorinator/salt-level/filter-speed
+  parsing are unchanged and still read the full unsplit text, since a parsed pattern can straddle
+  a row boundary. Panels that wrap at a different width (e.g. 16 chars, reported on a legacy
+  v2.85 unit) should override `display_cols`.
+  (github.com/b3nj1/rs485_frame-examples#2)
+
+### Documentation
+
+- **`hayward/aqualogic/button.yaml`, `hayward/aqualogic/example-device.yaml`: legacy-firmware
+  (main board v2.85) 2-byte button note.** Documents a community report that menu/display-centric
+  buttons (Service, Plus, Minus, Lights, Menu, Left, Right) are ignored by legacy-firmware
+  mainboards unless sent as 2-byte frames (`btn_element_bytes: "2"`) instead of the 4-byte
+  default; auxiliary relay buttons are unaffected. No default behavior changed — this is guidance
+  plus the derived 2-byte values for users who hit it, not independently verified on this repo's
+  own (newer-firmware) hardware.
+  (github.com/b3nj1/rs485_frame-examples#3)
+
 ## [3.0.2] - 2026-08-01
 
 ### Fixed
@@ -133,6 +158,7 @@ Initial released interface. Restructured the monolithic per-controller YAMLs int
 - `generic/` discovery / sniffer / skeleton remain monolithic bootstrap tools (exempt from the
   package structure) with header notes pointing at it for real integrations.
 
+[3.2.0]: https://github.com/b3nj1/rs485_frame-examples/compare/v3.0.2...v3.2.0
 [3.0.2]: https://github.com/b3nj1/rs485_frame-examples/compare/v3.0.1...v3.0.2
 [3.0.1]: https://github.com/b3nj1/rs485_frame-examples/compare/v3.0.0...v3.0.1
 [3.0.0]: https://github.com/b3nj1/rs485_frame-examples/compare/v2.0.0...v3.0.0

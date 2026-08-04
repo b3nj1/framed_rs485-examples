@@ -52,6 +52,12 @@
 substitutions:
   temp_unit: "°F"       # set to "°C" for Celsius regions
   temp_unit_short: "F"  # set to "C" for Celsius regions
+  # LCD width in characters per row -- hardware-dependent, not a protocol constant.
+  # Default (20) matches this repo's own hardware-verified captures (2 lines x 20 =
+  # 40 chars, SETTLED_FACTS.md). A Goldline AquaLogic v2.85 unit was independently
+  # reported wrapping at 16 chars/line (2x16) instead -- set display_cols: "16" if
+  # your panel's rows look truncated or run past the edge of a 20-char row.
+  display_cols: "20"
 
 rs485_frame:
   - id: pool
@@ -181,6 +187,31 @@ rs485_frame:
               blink[blen] = '\0';
               id(display_blink).publish_state(std::string(blink, blen));
 
+              // Row-split view of the same text, chunked into ${display_cols}-char rows
+              // to match how the physical LCD actually wraps -- width varies by panel,
+              // see the display_cols substitution above.
+              // Screen-name patterns below ("Pool Temp 85°F") are matched against the
+              // full unsplit `text`, not these rows -- a pattern can straddle a row
+              // boundary, so parsing must never read from display_row1..4.
+              {
+                const size_t cols = ${display_cols};
+                const char *rows[4] = {nullptr, nullptr, nullptr, nullptr};
+                size_t row_len[4] = {0, 0, 0, 0};
+                for (size_t row = 0; row < 4; row++) {
+                  size_t start = row * cols;
+                  if (start >= tlen) break;
+                  size_t len = (cols < (size_t(tlen) - start)) ? cols : (size_t(tlen) - start);
+                  size_t end = start + len;
+                  while (end > start && text[end - 1] == ' ') end--;
+                  rows[row] = text + start;
+                  row_len[row] = end - start;
+                }
+                id(display_row1).publish_state(std::string(rows[0] ? rows[0] : "", row_len[0]));
+                id(display_row2).publish_state(std::string(rows[1] ? rows[1] : "", row_len[1]));
+                id(display_row3).publish_state(std::string(rows[2] ? rows[2] : "", row_len[2]));
+                id(display_row4).publish_state(std::string(rows[3] ? rows[3] : "", row_len[3]));
+              }
+
               // Display screens are mutually exclusive per frame; use else-if chains
               // to skip unrelated checks once the current screen is identified.
               //
@@ -274,6 +305,28 @@ text_sensor:
     name: "Display Blink"
     # Non-empty string when any character on the display is blinking.
     # Automations can trigger on state != "" to detect alarms or mode changes.
+
+  # Display split into ${display_cols}-char rows, matching the physical LCD's own
+  # line wrap. Row 1/2 cover every known panel; rows 3/4 are disabled by default
+  # and only populate on wider displays that emit more than ${display_cols}*2
+  # characters per frame -- enable them in HA under Settings > Entities if your panel needs them.
+  - platform: template
+    id: display_row1
+    name: "Display Row 1"
+
+  - platform: template
+    id: display_row2
+    name: "Display Row 2"
+
+  - platform: template
+    id: display_row3
+    name: "Display Row 3"
+    disabled_by_default: true
+
+  - platform: template
+    id: display_row4
+    name: "Display Row 4"
+    disabled_by_default: true
 
   - platform: template
     id: filter_speed_text
