@@ -1,1 +1,4 @@
 .esphome
+
+# Vim swap files
+.*.swp
