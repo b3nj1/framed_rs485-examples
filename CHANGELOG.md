@@ -6,7 +6,7 @@ All notable changes to the published configuration interface are documented here
 [CONTRIBUTING.md](CONTRIBUTING.md#8a-versioning-and-breaking-changes) for the rules.
 
 - **MAJOR** — change a file path, hub `id`, substitution, or entity `id`/`name`.
-- **MINOR** — additive: a new profile file, a new optional substitution *with a default*, a new entity.
+- **MINOR** — additive: a new package file, a new optional substitution *with a default*, a new entity.
 - **PATCH** — decoder or bug fix with no interface change.
 
 ## [3.2.0] - 2026-08-04
@@ -23,6 +23,33 @@ All notable changes to the published configuration interface are documented here
   v2.85 unit) should override `display_cols`.
   (github.com/b3nj1/rs485_frame-examples#2)
 
+- **`hayward/aqualogic/diagnostics.yaml`** (new optional package). Opt-in diagnostic tools
+  for the `pool` hub: adds both `sniffer_stats:` (periodic per-frame-type statistics table)
+  and `dump_frames:` (per-frame raw logging) via `id: !extend pool`. Uncomment its line in
+  `example-device.yaml`'s `packages.rs485.files:` list to enable either or both. Ships with
+  hardware-tuned defaults for the stats table that lived in the now-removed `sniffer.yaml`
+  (`interval: 30s`, `max_frame_types: 32`, `max_unique_payloads: 24`, `payload_capture_bytes: 48`,
+  `payload_dump_top: 8`), now exposed as optional `vars:` (`stats_interval`,
+  `stats_max_frame_types`, `stats_max_unique_payloads`, `stats_payload_capture_bytes`,
+  `stats_payload_dump_top`) plus a new `dump_frames_enable` var (default `"false"`) to toggle
+  per-frame logging. Vars can be overridden per-device without editing the packaged file.
+  `reference_frame_type: [0x01, 0x01]` and `ascii_strip_high_bit: true` are unchanged and
+  not exposed as vars — they're Hayward protocol facts, not tuning knobs.
+
+### Removed
+
+- **`hayward/aqualogic/sniffer.yaml`.** Standalone, non-packaged diagnostic tool; never referenced
+  via any `packages.files:` list, so no packaged device config is affected. Its tuning now ships as
+  the opt-in package `hayward/aqualogic/diagnostics.yaml` (see Added, above). If you
+  built directly off the old file (copied it, or pointed a local `!include` at it) rather than using
+  the packaged `bus.yaml` + `example-device.yaml` flow, switch to `example-device.yaml` and uncomment
+  the `hayward/aqualogic/diagnostics.yaml` line in its `packages.rs485.files:` list — the same
+  tuned values are there unchanged.
+
+- **`hayward/aqualogic/bus.yaml`: hardcoded `dump_frames: false` removed.** The line only duplicated
+  the component's own schema default (`false`), so it was redundant on its own terms. Toggling this
+  feature is now available via `hayward/aqualogic/diagnostics.yaml`'s `dump_frames_enable` var.
+
 ### Documentation
 
 - **`hayward/aqualogic/button.yaml`, `hayward/aqualogic/example-device.yaml`: legacy-firmware
@@ -33,6 +60,16 @@ All notable changes to the published configuration interface are documented here
   plus the derived 2-byte values for users who hit it, not independently verified on this repo's
   own (newer-firmware) hardware.
   (github.com/b3nj1/rs485_frame-examples#3)
+
+- **`Role:` header taxonomy renamed to follow ESPHome's own `packages:` vocabulary.** `bus package` +
+  `equipment profile` → `package (required)` / `package (optional)`; `snippet` → `package as
+  template` (ESPHome's own term, see [Packages as Templates](https://esphome.io/components/packages/#packages-as-templates));
+  `standalone tool` → `device config (no remote packages)`; `device config` → `device config with
+  remote packages`. `contributor skeleton` is unchanged (an ESPHome-neutral concept). `templates/`
+  renamed to `skeletons/` to match and to remove the collision with the new `package as template`
+  term. Every file's `Role:` line and `CONTRIBUTING.md`'s terminology table (§2, §7) updated to
+  match; not a behavior change, and none of the renamed files are ever referenced via any
+  `packages.files:` list, so no published interface path breaks.
 
 ## [3.0.2] - 2026-08-01
 

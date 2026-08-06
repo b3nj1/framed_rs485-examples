@@ -11,8 +11,8 @@ controller or piece of equipment, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Status note
 
-`rs485_frame` is not yet in the ESPHome repository. The bus package for each controller family
-includes an `external_components` block that pulls it from the
+`rs485_frame` is not yet in the ESPHome repository. Each device config includes an
+`external_components` block that pulls it from the
 [staging branch](https://github.com/b3nj1/esphome/tree/rs485_frame). Once it is merged into an
 official ESPHome release, that block goes away.
 
@@ -63,7 +63,7 @@ GPIO18 --> RO  (RX)
 ## Quick start: assemble your device config
 
 Each controller family ships an `example-device.yaml` — a runnable, fully commented **menu** of every
-profile available for that controller. **Pick yours from [Available configurations](#available-configurations)
+optional package available for that controller. **Pick yours from [Available configurations](#available-configurations)
 below first** (Jandy owners: both Jandy files are currently UNTESTED). Then assemble it in the same four
 steps every time:
 
@@ -96,7 +96,7 @@ your edits then stay local. See [CONTRIBUTING.md](CONTRIBUTING.md) for the compo
 
 ## Available configurations
 
-One row per controller family; per-profile descriptions and status live in that family's commented
+One row per controller family; per-package descriptions and status live in that family's commented
 `example-device.yaml` (the single source of truth).
 
 | Controller family | Device config | Status |
@@ -122,10 +122,12 @@ If you are bringing up a controller that is not listed above, work through `gene
 | [generic/sniffer.yaml](generic/sniffer.yaml) | Passive sniffer with `sniffer_stats:` once you know the framing. Logs a periodic per-frame-type table (cadence, unique payloads) to catalog frame types. |
 | [generic/skeleton.yaml](generic/skeleton.yaml) | Starting point for a single monolithic config. Raw-form buttons and `rs485_frame.send_frame` for computed payloads. |
 
-These stay monolithic by design — there are no equipment profiles to compose for an unknown bus.
-Per-family sniffers (e.g. [hayward/aqualogic/sniffer.yaml](hayward/aqualogic/sniffer.yaml)) are the
-same kind of self-contained tool. Once you have decoded the bus, package it up following
-[CONTRIBUTING.md](CONTRIBUTING.md) and submit it.
+These stay monolithic by design — there are no optional packages to compose for an unknown bus. Once
+you have decoded the bus, package it up following [CONTRIBUTING.md](CONTRIBUTING.md) and submit it.
+Hayward's packaged config set ships its diagnostic tools as an ordinary opt-in
+package instead — `hayward/aqualogic/diagnostics.yaml`, enabled with one commented-out line in
+`hayward/aqualogic/example-device.yaml` — rather than a separate monolithic device config. Other
+packaged families (e.g. Jandy) don't have an equivalent yet.
 
 ## Sample capture
 

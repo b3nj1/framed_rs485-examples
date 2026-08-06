@@ -1,6 +1,7 @@
 # =============================================================================
 # Hayward AquaLogic / ProLogic — example device config
 # -----------------------------------------------------------------------------
+# Role:        device config with remote packages
 # Status:      tested-on-hardware
 # Tested on:   Hayward AquaLogic / ProLogic; ESP32-S3 (Waveshare ESP32-S3-RS485-CAN)
 #
@@ -12,7 +13,7 @@
 #   1. Copy it to your ESPHome configuration directory and rename it (the name
 #      becomes your device's hostname).
 #   2. Fill in all substitutions: below (name, board, GPIO pins, transmit role).
-#   3. In the packages.rs485.files list, uncomment the equipment profiles you have
+#   3. In the packages.rs485.files list, uncomment the optional packages you have
 #      (pump-vsp.yaml, heater.yaml). The bus.yaml line is REQUIRED — leave it
 #      uncommented. LED and button entries are already active; rename labels to
 #      match your load, and remove entries for gear your system doesn't have.
@@ -20,8 +21,14 @@
 #      them in Settings > Entities once you know which ones apply to you.
 #   4. Add wifi_ssid / wifi_password to your secrets.yaml (remote packages cannot
 #      contain !secret, so wifi/api/ota stay in this file).
-#   5. Flash. Start with hayward/aqualogic/sniffer.yaml first if you want to confirm
-#      the bus is visible before sending commands.
+#   5. Flash. Want the periodic diagnostic stats table (frame cadence, unique
+#      payload counts) and/or per-frame raw logging? Uncomment the hayward/aqualogic/diagnostics.yaml line
+#      in the packages.rs485.files list. Its tuning (capture size, how many
+#      frame types/payloads to track, whether to enable frame dump) has defaults built in — to override any
+#      of them, expand that one line into `path:` + `vars:` form, e.g.:
+#        - path: hayward/aqualogic/diagnostics.yaml
+#          vars: { stats_max_unique_payloads: 12, dump_frames_enable: "true" }
+#      See diagnostics.yaml's own header for the full list of vars.
 #
 # To update to a newer release, bump packages.rs485.ref to a newer tag. To edit a
 # decoder, copy the package files locally and switch to local !include (see README).
@@ -98,12 +105,13 @@ packages:
     ref: v3.2.0          # PINNED release tag — bump deliberately to update (see README)
     refresh: 1d
     files:
-      # Bus package is REQUIRED and stays uncommented.
+      # Required package: stays uncommented.
       - hayward/aqualogic/bus.yaml
 
       # --- Equipment: uncomment the lines for gear you have, delete the rest. ---
       # - hayward/aqualogic/pump-vsp.yaml        # Variable-speed pump — Status: tested
       # - hayward/aqualogic/heater.yaml          # Gas/heat-pump heater — Status: tested
+      # - hayward/aqualogic/diagnostics.yaml     # Diagnostic stats table + frame dump — Status: tested
 
       # --- LED indicators — rename labels to match your load; remove bits your panel lacks. ---
       # Enabled by default: states present on every AquaLogic panel.

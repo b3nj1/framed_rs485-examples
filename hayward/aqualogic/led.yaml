@@ -1,6 +1,8 @@
 # =============================================================================
 # Hayward AquaLogic / ProLogic — per-LED binary sensor package
 # -----------------------------------------------------------------------------
+# Role: package as template
+#
 # Include once per bit you want to expose in Home Assistant.
 # The lambda reads g_led_mask (updated by bus.yaml on every [0x01,0x02] frame)
 # and polls it every 100 ms — no on_frame extension or explicit id: needed.

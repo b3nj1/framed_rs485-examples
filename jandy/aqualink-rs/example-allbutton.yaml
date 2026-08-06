@@ -7,6 +7,7 @@
 # =============================================================================
 # Jandy AquaLink RS — example device config: active AllButton emulator (UNTESTED)
 # -----------------------------------------------------------------------------
+# Role:        device config with remote packages
 # Status:      UNTESTED-draft
 # Tested on:   (none — community reverse-engineering only)
 #
@@ -17,7 +18,7 @@
 # HOW TO USE THIS FILE
 #   1. Copy and rename it. Fill in all substitutions: below (name, board, GPIO pins).
 #   2. allbutton.yaml is REQUIRED here (it turns the hub active). Uncomment the
-#      equipment profiles you have and delete the rest.
+#      optional packages you have and delete the rest.
 #   3. Add wifi_ssid / wifi_password to your secrets.yaml.
 #   4. If your AllButton lives at an address other than 0x08, change the gate in
 #      allbutton.yaml and the frame addresses in leds-display.yaml.
@@ -74,7 +75,7 @@ packages:
     ref: v3.2.0          # PINNED release tag — bump deliberately to update
     refresh: 1d
     files:
-      # Bus package is REQUIRED and stays uncommented.
+      # Required package: stays uncommented.
       - jandy/aqualink-rs/bus.yaml
       # AllButton emulator is REQUIRED for this active config (it transmits).
       - jandy/aqualink-rs/allbutton.yaml

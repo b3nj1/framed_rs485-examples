@@ -1,8 +1,10 @@
+## Role: device config (no remote packages)
+##
 ## Skeleton config for an arbitrary DLE-framed RS485 device.
 ##
 ## This is a single, self-contained (monolithic) starting point for a bus you are
 ## still reverse-engineering. Once you have decoded a controller, DO NOT ship a
-## forked monolith: split it into a reusable bus package + equipment profiles and
+## forked monolith: split it into a required package + optional packages and
 ## a thin device config, following CONTRIBUTING.md. See the hayward/aqualogic/ and
 ## jandy/aqualink-rs/ package sets for worked examples.
 ##

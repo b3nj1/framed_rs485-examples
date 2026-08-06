@@ -13,12 +13,16 @@ the equipment they have. This document explains how to author those files.
 Standardize on ESPHome [`packages`](https://esphome.io/components/packages/). A device config pulls
 reusable files in via `packages:` — remote git packages (pinned tag) by default, or local copies as
 a fallback for users who must edit a decoder. **Do not mix `!include` / `packages` / `!extend`
-styles across configs**: equipment profiles extend the shared hub with `!extend` (see below), and
+styles across configs**: optional packages extend the shared hub with `!extend` (see below), and
 that is the only place `!extend` appears.
 
-**Exempt: diagnostic / bootstrap tools.** `generic/discovery.yaml`, `generic/sniffer.yaml`,
-`generic/skeleton.yaml`, and the per-family `sniffer.yaml` are single-purpose tools for an *unknown*
-bus — there are no equipment profiles to compose yet, so they stay monolithic and self-contained.
+**Exempt: diagnostic / bootstrap tools.** `generic/discovery.yaml`, `generic/sniffer.yaml`, and
+`generic/skeleton.yaml` are single-purpose device configs for an *unknown* bus, with no `packages:`
+block — there are no optional packages to compose yet, so they stay monolithic and self-contained.
+Hayward, the one family with tuned diagnostic tools, ships them as an ordinary
+opt-in optional package (`hayward/aqualogic/diagnostics.yaml`) instead of a separate monolithic
+tool — other packaged families (e.g. Jandy) don't have an equivalent yet, but the same pattern
+applies whenever one is added.
 
 ## 2. Terminology and repo layout
 
@@ -26,37 +30,50 @@ bus — there are no equipment profiles to compose yet, so they stay monolithic 
 usage). RS485 bus members are called **equipment**, never "devices." The phrase "device profile" is
 not used.
 
+Role names follow ESPHome's own `packages:` vocabulary ([Local/Remote Packages](https://esphome.io/components/packages/),
+[Packages as Templates](https://esphome.io/components/packages/#packages-as-templates)) rather than
+inventing new terms, with two ESPHome-neutral additions: a required/optional qualifier on `package`
+(ESPHome doesn't distinguish these; this repo's family-per-directory layout needs to), and
+`contributor skeleton` (a concept specific to this repo, not an ESPHome one).
+
 | Term | What it is | Reusable? | Edited by | Example |
 |---|---|---|---|---|
-| **Device config** | The complete ESPHome config for one physical ESP board: `substitutions` + `wifi`/`api`/`ota`/secrets + a `packages:` list. The only file flashed. | No (per-installation) | End user | `hayward/aqualogic/example-device.yaml` |
-| **Bus package** | The shared RS485 hub for a controller family: `uart`, `framing`, `crc`, `tx`, `command_format` + panel-wide entities. One per family. | Yes | Contributor | `hayward/aqualogic/bus.yaml` |
-| **Equipment profile** | One piece of equipment, keyed on the `frame_type`s it owns. Contributes `on_frame` decoders + its own entities. | Yes | Contributor | `pump-vsp.yaml`, `swg.yaml` |
+| **Device config** (`with remote packages` / `(no remote packages)`) | The complete ESPHome config for one physical ESP board: `substitutions` + `wifi`/`api`/`ota`/secrets, plus a `packages:` list for families that have one. The only file flashed. | No (per-installation) | End user | `hayward/aqualogic/example-device.yaml` (with remote packages); `generic/sniffer.yaml` (no remote packages) |
+| **Package (required)** | The shared RS485 hub for a controller family: `uart`, `framing`, `crc`, `tx`, `command_format` + panel-wide entities. One per family; its `packages:` line stays uncommented. | Yes | Contributor | `hayward/aqualogic/bus.yaml` |
+| **Package (optional)** | One piece of equipment, keyed on the `frame_type`s it owns, contributing `on_frame` decoders + its own entities — or, for a diagnostics-only package, a non-decoder hub key instead (e.g. `sniffer_stats:` in `hayward/aqualogic/diagnostics.yaml`). Typically commented out by default in the device config's `packages:` list, though a specific device config may keep one uncommented when it doesn't make sense without it — see §7. | Yes | Contributor | `pump-vsp.yaml`, `swg.yaml`, `diagnostics.yaml` |
+| **Package as template** | A package included via `path:` + `vars:`, parameterized per inclusion — ESPHome's own term for this pattern. | Yes | Contributor | `button.yaml`, `led.yaml` |
+| **Contributor skeleton** | Copy-and-fill starting point for a new controller family; not usable as-is. | N/A | Contributor | `skeletons/bus.yaml`, `skeletons/profile.yaml` |
 
 Layout: each controller family lives at `vendor/controller-family/` and holds `bus.yaml`, one file
-per equipment profile, and `example-device.yaml` (one per operating mode where relevant, e.g. Jandy
-passive vs. allbutton). Reusable skeletons live in `templates/`; captures in `captures/`.
+per optional package, and `example-device.yaml` (one per operating mode where relevant, e.g. Jandy
+passive vs. allbutton). Reusable skeletons live in `skeletons/`; captures in `captures/`.
 
 **File naming:** lowercase, hyphenated, named for the equipment (`pump-vsp.yaml`, `heater.yaml`,
-`leds-display.yaml`). `bus.yaml` and `example-device.yaml` are fixed names.
+`leds-display.yaml`). `bus.yaml` is a fixed name. Every device config filename is prefixed
+`example-` — `example-device.yaml` for a single-mode family, or `example-<mode>.yaml` (e.g. Jandy's
+`example-passive.yaml` / `example-allbutton.yaml`) when a family ships more than one operating mode.
+The prefix is what marks a file as "the one you flash" at a glance; no other file kind uses it.
 
 ## 3. The pluggable unit
 
-An **equipment profile is the set of `frame_type`s it owns** — in either direction. A variable-speed
-pump owns both the controller→pump command frame (Hayward `0x0c 0x01`) and the pump→bus report frame
-(`0x00 0x0c`); both belong in `pump-vsp.yaml`. Keying on owned frames composes cleanly on a
-panel-mediated bus (Hayward) and a poll-response bus (Jandy) alike.
+An **optional package's identity is the set of `frame_type`s it owns** — in either direction. A
+variable-speed pump owns both the controller→pump command frame (Hayward `0x0c 0x01`) and the
+pump→bus report frame (`0x00 0x0c`); both belong in `pump-vsp.yaml`. Keying on owned frames composes
+cleanly on a panel-mediated bus (Hayward) and a poll-response bus (Jandy) alike.
 
-A profile **may** contain:
+An optional package **may** contain:
 
-- A partial hub entry that extends the shared hub by id (decoders only — see §4).
+- A partial hub entry that extends the shared hub by id (decoders only — see §4 — except a
+  diagnostics-only package's entry, which may instead be a non-decoder key like `sniffer_stats:`).
 - Its own entities (`sensor`, `binary_sensor`, `text_sensor`, `button`, ...).
 
-A profile **must not** contain `uart`, `framing`, `crc`, `command_format` (except where it converts a
-passive base to active — see §6), or any `!secret`. Those belong to `bus.yaml` / the device config.
+An optional package **must not** contain `uart`, `framing`, `crc`, `command_format` (except where it
+converts a passive base to active — see §6), or any `!secret`. Those belong to `bus.yaml` / the
+device config.
 
-**The `bus.yaml` contract.** The bus package owns the bus-wide required hub fields (`uart`,
+**The `bus.yaml` contract.** The required package owns the bus-wide required hub fields (`uart`,
 `framing`, `crc`, `tx`, optionally `command_format`) and panel-wide entities. It declares the hub
-with a plain `id:` (e.g. `id: pool`); every profile and entity references that id.
+with a plain `id:` (e.g. `id: pool`); every optional package and entity references that id.
 
 ## 4. Composition mechanics
 
@@ -83,18 +100,18 @@ rs485_frame:
         then: [ lambda: !lambda "..." ]
 ```
 
-`!extend pool` finds the hub declared in `bus.yaml` and merges the profile's dict into it; because
-`on_frame` is a list, the profile's handlers are concatenated onto the hub's. Several profiles can
-extend the same hub, each adding its own `on_frame` handlers and entities, and they all land in one
-merged hub.
+`!extend pool` finds the hub declared in `bus.yaml` and merges the optional package's dict into it;
+because `on_frame` is a list, the package's handlers are concatenated onto the hub's. Several
+optional packages can extend the same hub, each adding its own `on_frame` handlers and entities, and
+they all land in one merged hub.
 
 **Shared-frame decoding rule.** The hub fires **every** `on_frame` handler whose `frame_type` prefix
-matches a received frame, not just the first. So one frame type can be decoded by several profiles:
-the Hayward LED-mask frame `0x01 0x02` is registered by `bus.yaml` (panel bits + display sensors)
-and `heater.yaml` (heater active bit). `led.yaml` does not add an `on_frame` handler; instead it
-polls the `g_led_mask` global that `bus.yaml` updates on every `0x01 0x02` frame. **Register one
-`on_frame` handler per profile, guard only your own bytes/bits, and never assume sole ownership of
-a frame type.**
+matches a received frame, not just the first. So one frame type can be decoded by several optional
+packages: the Hayward LED-mask frame `0x01 0x02` is registered by `bus.yaml` (panel bits + display
+sensors) and `heater.yaml` (heater active bit). `led.yaml` does not add an `on_frame` handler;
+instead it polls the `g_led_mask` global that `bus.yaml` updates on every `0x01 0x02` frame.
+**Register one `on_frame` handler per package, guard only your own bytes/bits, and never assume sole
+ownership of a frame type.**
 
 ## 5. The substitution contract
 
@@ -130,7 +147,7 @@ one place and contributors cannot accidentally split it.
 
 ## 6. Superset handling and role/mode selection
 
-**AUX / VALVE channels — packages-as-template.** Rather than ship a bloated enabled-by-default
+**AUX / VALVE channels — package as template.** Rather than ship a bloated enabled-by-default
 superset, the Hayward set splits a channel into two small parameterized templates, each included
 once per channel: `button.yaml` (the command) and `led.yaml` (the status bit). The device config
 lists the ones it has:
@@ -155,36 +172,37 @@ local-copy use the `!include` form works the same:
 **Vendor role / mode selection.** Prefer a substitution over separate files when the difference is a
 few bytes. Hayward's wireless/wired transmit role is the `${cmd_preamble}` substitution (a one-line
 edit in the device config; verified values are listed in `hayward/aqualogic/bus.yaml`). When the
-difference is structural (passive observer vs. active emulator), use a small profile that **extends**
-the base: Jandy's `allbutton.yaml` flips `sniffer_only: false`, adds `command_format` + `tx`, and
-extends the base. The device config's `uart:` block owns all pin config including the optional
-`flow_control_pin`; the passive and active example device configs both show this.
+difference is structural (passive observer vs. active emulator), use a small optional package that
+**extends** the base: Jandy's `allbutton.yaml` flips `sniffer_only: false`, adds `command_format` +
+`tx`, and extends the base. The device config's `uart:` block owns all pin config including the
+optional `flow_control_pin`; the passive and active example device configs both show this.
 
 ## 6a. Keep the example menu complete (obligation)
 
-`example-device.yaml` is the consumer's runnable, commented "menu" of every profile for a family.
-**When you add a bus package or equipment profile, add its commented `packages:` line — a one-line
-description + `Status: tested|UNTESTED` — to that family's `example-device.yaml`(s).** The bus line
-stays uncommented (it is mandatory). This keeps the consumer-facing menu authoritative; the PR
-checklist gates on it.
+`example-device.yaml` is the consumer's runnable, commented "menu" of every package for a family.
+**When you add a required or optional package, add its commented `packages:` line — a one-line
+description + `Status: tested|UNTESTED` — to that family's `example-device.yaml`(s).** The required
+package's line stays uncommented (it is mandatory). This keeps the consumer-facing menu
+authoritative; the PR checklist gates on it.
 
-## 7. Templates and the standard metadata header
+## 7. Skeletons and the standard metadata header
 
-Two skeletons live in `templates/`: `templates/bus.yaml` (bus package) and `templates/profile.yaml`
-(equipment profile). Copy the matching one when authoring a new file.
+Two skeletons live in `skeletons/`: `skeletons/bus.yaml` (required package) and
+`skeletons/profile.yaml` (optional package). Copy the matching one when authoring a new file.
 
-Every reusable file (`bus.yaml`, equipment profiles, and the `templates/*` skeletons) opens with the
+Every reusable file (`bus.yaml`, optional packages, and the `skeletons/*` skeletons) opens with the
 **full** standard metadata header:
 
 ```yaml
 # =============================================================================
-# <Vendor> <Controller family> — <bus package | equipment profile: NAME>
+# <Vendor> <Controller family> — <bus | NAME>
 # -----------------------------------------------------------------------------
+# Role:        package (required) | package (optional) | contributor skeleton
 # Status:      tested-on-hardware | UNTESTED-draft
 # Tested on:   <controller model>, firmware <rev>; <ESP board>; ESPHome <x.y.z>;
 #              rs485_frame <component version / git ref>
 # Bus:         <baud> baud, <data><parity><stop>   (e.g. 19200 8N2)
-# Owns frames: <frame_type list this file decodes/sends>  (bus package: gate + command frames)
+# Owns frames: <frame_type list this file decodes/sends>  (required package: gate + command frames)
 # Offsets:     payload-relative — payload[0..N-1] = frame_type, data starts at payload[N]
 # References:  <reverse-engineering source links>
 #
@@ -193,9 +211,28 @@ Every reusable file (`bus.yaml`, equipment profiles, and the `templates/*` skele
 # =============================================================================
 ```
 
-`example-device.yaml` carries a **lighter** header — `Status`, `Tested on` (the exact system the
-author verified), and `Contributors` — because frame ownership / offsets / references live in the
+`example-device.yaml` carries a **lighter** header — `Role`, `Status`, `Tested on` (the exact system
+the author verified), and `Contributors` — because frame ownership / offsets / references live in the
 packages it pulls in.
+
+**`Role:`** is a single line, one of four base values: `device config`, `package`, `package as
+template`, or `contributor skeleton`. Two of these always carry a qualifier:
+
+- `device config` is suffixed `with remote packages` or `(no remote packages)`, depending on whether
+  the file has a `packages:` block.
+- `package` is suffixed `(required)` or `(optional)`. `(required)` is reserved for the family's
+  shared hub — always `bus.yaml`, exactly one per family. Every other package is `(optional)`, even
+  one a specific device config keeps uncommented by default because that config doesn't make sense
+  without it (e.g. Jandy's `allbutton.yaml` in `example-allbutton.yaml`) — optional describes the
+  package's role in the taxonomy, not whether any single device config happens to enable it.
+
+Every file in scope for this convention carries a `Role:` line, not only the files with the full
+header above. Two file kinds have no `Status:` field to sit `Role:` next to, so it goes elsewhere in
+their existing prose style rather than restructuring the header: `generic/discovery.yaml`,
+`generic/sniffer.yaml`, and `generic/skeleton.yaml` (`device config (no remote packages)`) put it as
+the very first `##` line of the file; `hayward/aqualogic/button.yaml` and `led.yaml` (`package as
+template`) put it as the first line inside their existing boxed banner, immediately after the title
+separator and before the descriptive prose.
 
 ## 8. Decoder rules and the offset convention
 
@@ -236,7 +273,7 @@ and users' automations derive from these).
 2. **Single-ref mapping form.** One `remote_package` block (`url:` + `ref:` + `files:`) per device
    config, so the ref lives in one place and the commented menu + aux `vars` entries share it.
 3. **Semver against the interface.** MAJOR = change a path / hub id / substitution / entity
-   id-or-name. MINOR = additive (new profile file, new optional scalar substitution with a default,
+   id-or-name. MINOR = additive (new package file, new optional scalar substitution with a default,
    new entity). PATCH = decoder/bugfix. Additive-by-default: within a major line never hard-delete or
    rename a referenced file or entity; any new required substitution must ship a default if scalar,
    or be documented as required-in-device-config if list-valued (list defaults in packages
@@ -252,9 +289,12 @@ and users' automations derive from these).
 ## 9. `external_components` / staging ref
 
 `rs485_frame` is not yet in an ESPHome release. The `external_components` block (pointing at the
-staging branch) lives **once, in `bus.yaml`** — equipment profiles and device configs must not repeat
-it (`external_components` is a list and would duplicate). Remove the block when `rs485_frame` ships in
-an official ESPHome release.
+staging branch) lives **once, in the flashable file** — the device config (`example-device.yaml`,
+`example-passive.yaml`, `example-allbutton.yaml`) or a device config with no remote packages
+(`generic/*.yaml`). `bus.yaml` is never flashed directly — it is package content pulled in via a
+device config's `packages.files:` list, which is its real distinguishing trait — so it never carries
+this block, and neither does any package. Remove the block entirely once `rs485_frame` ships in an
+official ESPHome release.
 
 ## 10. UNTESTED policy
 
@@ -273,15 +313,17 @@ custom display text** (pool/spa names, schedule text) before sharing. The worked
 
 ## 12. PR checklist
 
-- [ ] Standard metadata header present (full on packages/profiles/templates; lighter on
-      `example-device.yaml`), and the `Status` field is accurate.
+- [ ] Standard metadata header present (full on packages/skeletons; lighter on device configs with
+      remote packages; `Role:`-only in existing prose style on package-as-template files and device
+      configs with no remote packages), and the `Role` and `Status` fields are both accurate.
 - [ ] Config validates: `esphome config` passes on a device config that includes the new file.
-- [ ] Equipment profile extends the hub with `id: !extend <hub>` (not a bare `id:`), defines no
+- [ ] An optional package extends the hub with `id: !extend <hub>` (not a bare `id:`), defines no
       `uart`/`framing`/`crc`/`secret`, and guards every `payload.size()`.
-- [ ] New profile / bus added as a commented `packages:` line (description + Status) to the family's
-      `example-device.yaml`(s); bus line kept uncommented.
+- [ ] New package added as a commented `packages:` line (description + Status) to the family's
+      `example-device.yaml`(s); the required package's line kept uncommented.
 - [ ] Capture attached for a new controller (`captures/`), with contributors credited.
-- [ ] No duplicated `external_components` block (only `bus.yaml` has it).
+- [ ] No duplicated `external_components` block (only the flashable file — a device config — has it;
+      never `bus.yaml` or an optional package).
 - [ ] **Touches the public interface (paths / hub id / substitutions / entity id-or-name)? → MAJOR
       version bump + `CHANGELOG.md` entry + migration note.**
 

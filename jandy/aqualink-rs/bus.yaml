@@ -9,8 +9,9 @@
 # captures before enabling transmission, and please open an issue with results.
 # =============================================================================
 #
-# Jandy AquaLink RS — bus package (UNTESTED DRAFT)
+# Jandy AquaLink RS — bus (UNTESTED DRAFT)
 # -----------------------------------------------------------------------------
+# Role:        package (required)
 # Status:      UNTESTED-draft
 # Tested on:   (none — community reverse-engineering only)
 # Bus:         9600 baud, 8N1
@@ -29,7 +30,7 @@
 #
 # Shared hub for the Jandy AquaLink RS8/RS12/RS16 family. Defaults to a PASSIVE
 # observer (sniffer_only: true). The uart: block (including the optional
-# flow_control_pin) lives in the device config, not here. Equipment profiles
+# flow_control_pin) lives in the device config, not here. Optional packages
 # (leds-display.yaml, swg.yaml, epump.yaml, heater.yaml) add decoders via
 # `id: !extend pool`; allbutton.yaml converts the hub to an active AllButton
 # emulator. Both example device configs in this directory show the wiring.

@@ -11,6 +11,7 @@
 #
 # Jandy AquaLink RS — active AllButton emulator extras (UNTESTED DRAFT)
 # -----------------------------------------------------------------------------
+# Role:        package (optional)
 # Status:      UNTESTED-draft
 # Tested on:   (none — community reverse-engineering only)
 # Bus:         9600 baud, 8N1  (see bus.yaml)
@@ -24,7 +25,7 @@
 # =============================================================================
 #
 # Converts the passive `pool` hub from bus.yaml into an active AllButton emulator
-# and adds the keypress buttons. Include the LED/display/equipment profiles too
+# and adds the keypress buttons. Include the LED/display/optional packages too
 # (see example-allbutton.yaml) to read state back.
 #
 # How it works: the RS controller polls each device address in turn. When it

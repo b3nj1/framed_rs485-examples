@@ -1,6 +1,7 @@
 # =============================================================================
-# <Vendor> <Controller family> — bus package
+# <Vendor> <Controller family> — bus
 # -----------------------------------------------------------------------------
+# Role:        contributor skeleton  (change to "package (required)" after copying)
 # Status:      tested-on-hardware | UNTESTED-draft
 # Tested on:   <controller model>, firmware <rev>; <ESP board>; ESPHome <x.y.z>;
 #              rs485_frame <component version / git ref>
@@ -13,10 +14,10 @@
 #   - <Name (@handle)> — <contribution>  <link>
 # =============================================================================
 #
-# Bus package skeleton. Copy to <vendor>/<controller-family>/bus.yaml and fill in
+# Required package skeleton. Copy to <vendor>/<controller-family>/bus.yaml and fill in
 # the placeholders. This is the shared hub for one controller family; it owns the
 # bus-wide required fields (uart, framing, crc, tx, command_format) and any
-# panel-wide entities. Equipment profiles add to it via `id: !extend <hub_id>`.
+# panel-wide entities. Optional packages add to it via `id: !extend <hub_id>`.
 # See CONTRIBUTING.md for the rules.
 #
 # The device config's substitutions: block contains everything the user fills in:
@@ -51,9 +52,8 @@ rs485_frame:
     command_format:
       preamble: ${cmd_preamble}   # define this list in the DEVICE config
       value_element_bytes: 1      # TODO
-    dump_frames: false
 
-    # Panel-wide on_frame decoders go here (per-equipment decoders go in profiles).
+    # Panel-wide on_frame decoders go here (per-equipment decoders go in optional packages).
     # on_frame:
     #   - frame_type: [0x00, 0x00]
     #     then:
@@ -62,7 +62,7 @@ rs485_frame:
     #           id(some_panel_sensor).publish_state(float(payload[2]));
 
 # Panel-wide entities (diagnostics, nav buttons, panel LEDs/display). Per-equipment
-# entities live in the equipment profiles.
+# entities live in the optional packages.
 sensor:
   - platform: rs485_frame
     rs485_frame_id: <hub_id>

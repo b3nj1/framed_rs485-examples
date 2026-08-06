@@ -1,7 +1,9 @@
+## Role: device config (no remote packages)
+##
 ## Framing/CRC discovery for a COMPLETELY UNKNOWN DLE-framed bus.
 ##
 ## Diagnostic/bootstrap tool — monolithic by design and exempt from the package
-## structure (there are no equipment profiles to compose for an unknown bus). Once
+## structure (there are no optional packages to compose for an unknown bus). Once
 ## you know the framing, move on to generic/sniffer.yaml, then package per CONTRIBUTING.md.
 ##
 ## Use this first when you do not even know the dle/stx/etx delimiter bytes, the escape
