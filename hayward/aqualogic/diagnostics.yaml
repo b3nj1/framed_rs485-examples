@@ -1,0 +1,91 @@
+# =============================================================================
+# Hayward AquaLogic / ProLogic — diagnostics
+# -----------------------------------------------------------------------------
+# Role:        package (optional)
+# Status:      tested-on-hardware
+# Tested on:   Hayward AquaLogic / ProLogic; ESP32-S3; ESPHome 2026.6.0-dev;
+#              rs485_frame @ github://b3nj1/esphome@v3.0.2
+# Bus:         19200 baud, 8N2  (see bus.yaml)
+# Owns frames: none — diagnostic sniffer_stats: config only; reference_frame_type
+#              [0x01,0x01] (the keep-alive) is used only as a cadence anchor
+# Offsets:     n/a — this file adds no on_frame decoders
+# References:  values tuned from live Hayward AquaLogic captures; see
+#              captures/hayward-aqualogic-20260529.md
+#
+# Contributors:
+#   - b3nj1 (@b3nj1) — capture, decode, packaging
+# =============================================================================
+#
+# Opt-in diagnostic package for the shared `pool` hub. Adds `sniffer_stats:` (periodic
+# per-frame-type statistics table) and `dump_frames:` (per-frame raw logging) via `id: !extend pool`
+# -- uncomment this file's line in example-device.yaml any time you want these diagnostics
+# without building off a standalone sniffer config. Defaults below are tuned for the
+# Hayward AquaLogic / ProLogic frame set (absorbed from the removed per-family
+# hayward/aqualogic/sniffer.yaml, which bundled the same tuning into a
+# monolithic, non-packaged device config). Override any of them by expanding the
+# commented package line into `path:` + `vars:` form -- see example-device.yaml.
+#
+# Optional vars (all have the defaults below; override only what you need):
+#   stats_interval             How often the table prints (default: 30s).
+#   stats_max_frame_types      Distinct frame_types tracked at once (default: 32).
+#   stats_max_unique_payloads  Distinct payloads remembered per frame_type per
+#                               period (default: 24).
+#   stats_payload_capture_bytes  Bytes captured per payload for the hex/ASCII
+#                               dump (default: 48).
+#   stats_payload_dump_top     Top-N frame types dumped after each table
+#                               (default: 8).
+#   dump_frames_enable         Toggle per-frame raw logging (default: "false"; set to
+#                               "true" to log every frame as received, separately from
+#                               the periodic stats_table above).
+#
+# RAM cost while enabled: each distinct frame_type the sniffer discovers allocates
+# stats_max_unique_payloads * stats_payload_capture_bytes bytes of payload buffer
+# up front (plus smaller per-slot/per-entry bookkeeping on top), so at the
+# defaults (24 * 48 = 1152) all stats_max_frame_types: 32 slots filling amounts
+# to roughly 32 * 1152 = 36864 bytes (~36 KB) worst case -- lower
+# stats_max_frame_types/stats_max_unique_payloads/stats_payload_capture_bytes via
+# vars: if that is a meaningful fraction of your board's free heap. Comment this
+# file out again once you are done diagnosing either way.
+
+defaults:
+  stats_interval: 30s
+  stats_max_frame_types: 32
+  stats_max_unique_payloads: 24
+  stats_payload_capture_bytes: 48
+  stats_payload_dump_top: 8
+  dump_frames_enable: "false"
+
+rs485_frame:
+  - id: !extend pool
+    # Frame dump: per-frame raw logging toggle (independent of sniffer_stats: below).
+    dump_frames: ${dump_frames_enable}
+
+    # Periodic stats table: one row per frame type with arrival cadence (since-ref
+    # and since-same-type) and a per-frame-type unique-payload count + hex/ASCII
+    # dump. Every interval the table prints and the per-period counters reset, so
+    # each window is an independent capture session -- press one set of buttons,
+    # copy the stats, press a different set in the next window, etc., without
+    # rebooting the ESP.
+    sniffer_stats:
+      interval: ${stats_interval}
+      # max_frame_types: well above what Hayward usually shows (fewer than 10) since we
+      # want headroom to catch anything new (e.g. button-press frames at 0x00 0x83).
+      max_frame_types: ${stats_max_frame_types}
+      # Distinct payloads remembered per frame_type per period. Display frames cycle through
+      # many screens (~10-20); the default of 24 lets the period capture most of one rotation
+      # before spilling into +overflow.
+      max_unique_payloads: ${stats_max_unique_payloads}
+      # Capture more bytes per payload than the 32-byte component default: Hayward display
+      # frames run ~32 bytes and we want to see the whole thing in the hex+ASCII dump.
+      payload_capture_bytes: ${stats_payload_capture_bytes}
+      # Dump hex+ASCII for the top N frame types by count after each table.
+      payload_dump_top: ${stats_payload_dump_top}
+      # reference_frame_type: fixed, not a var -- this is the Hayward keep-alive frame
+      # identity ([0x01, 0x01], same as tx.gate.frame_type), not a per-user tuning knob.
+      # Explicit here for clarity and so you can hand-edit it if you start looking for
+      # cadence relative to a different anchor.
+      reference_frame_type: [0x01, 0x01]
+      # ascii_strip_high_bit: fixed, not a var -- Hayward display frames always pack a
+      # blink/inverse attribute flag into bit 7 of each display byte; strip it before the
+      # ASCII gate so characters render instead of '.'.
+      ascii_strip_high_bit: true

@@ -1,6 +1,8 @@
 # =============================================================================
 # Hayward AquaLogic / ProLogic — per-button package
 # -----------------------------------------------------------------------------
+# Role: package as template
+#
 # Include once per button you want to expose in Home Assistant.
 # The button sends the value(s) through the pool hub using the hub's command_format by
 # default (set via cmd_preamble / cmd_postamble in your device config). To override the

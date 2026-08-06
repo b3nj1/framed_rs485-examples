@@ -1,6 +1,7 @@
 # =============================================================================
-# Hayward AquaLogic / ProLogic — equipment profile: heater
+# Hayward AquaLogic / ProLogic — heater
 # -----------------------------------------------------------------------------
+# Role:        package (optional)
 # Status:      tested-on-hardware
 # Tested on:   Hayward AquaLogic / ProLogic with gas/heat-pump heater; ESP32-S3;
 #              ESPHome 2026.6.0-dev; rs485_frame @ github://b3nj1/esphome@v3.0.2

@@ -3,6 +3,7 @@
 # =============================================================================
 # Jandy AquaLink RS — example device config: PASSIVE observer (UNTESTED DRAFT)
 # -----------------------------------------------------------------------------
+# Role:        device config with remote packages
 # Status:      UNTESTED-draft
 # Tested on:   (none — community reverse-engineering only)
 #
@@ -17,7 +18,7 @@
 #
 # HOW TO USE THIS FILE
 #   1. Copy and rename it. Fill in all substitutions: below (name, board, GPIO pins).
-#   2. In packages.rs485.files, uncomment the equipment profiles you have and
+#   2. In packages.rs485.files, uncomment the optional packages you have and
 #      delete the rest. bus.yaml is REQUIRED.
 #   3. Add wifi_ssid / wifi_password to your secrets.yaml.
 
@@ -73,7 +74,7 @@ packages:
     ref: v3.2.0          # PINNED release tag — bump deliberately to update
     refresh: 1d
     files:
-      # Bus package is REQUIRED and stays uncommented.
+      # Required package: stays uncommented.
       - jandy/aqualink-rs/bus.yaml
       # --- Equipment: uncomment the lines for gear you have, delete the rest. ---
       # - jandy/aqualink-rs/leds-display.yaml    # Panel LEDs + display — Status: UNTESTED

@@ -1,3 +1,5 @@
+## Role: device config (no remote packages)
+##
 ## Passive frame-type sniffer for a DLE-framed bus once you know its framing.
 ##
 ## Diagnostic/bootstrap tool — monolithic by design and exempt from the package

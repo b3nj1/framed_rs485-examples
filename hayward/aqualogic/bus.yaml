@@ -1,6 +1,7 @@
 # =============================================================================
-# Hayward AquaLogic / ProLogic — bus package
+# Hayward AquaLogic / ProLogic — bus
 # -----------------------------------------------------------------------------
+# Role:        package (required)
 # Status:      tested-on-hardware
 # Tested on:   Hayward AquaLogic / ProLogic; ESP32-S3; ESPHome 2026.6.0-dev;
 #              rs485_frame @ github://b3nj1/esphome@v3.0.2
@@ -27,7 +28,7 @@
 #     (${cmd_preamble}) + ${cmd_element_bytes}-byte value(s) + ${cmd_postamble}
 #   - panel-wide entities: nav/mode buttons, display text, and the panel LEDs
 #
-# Equipment profiles (pump-vsp.yaml, heater.yaml) and per-button/per-LED templates
+# Optional packages (pump-vsp.yaml, heater.yaml) and per-button/per-LED templates
 # (button.yaml, led.yaml) add to this hub with `id: !extend pool` — they MUST NOT
 # redefine uart/framing/crc. See CONTRIBUTING.md.
 #
@@ -82,8 +83,6 @@ rs485_frame:
       value_element_bytes: ${cmd_element_bytes}
       endian: ${cmd_endian}
       postamble: ${cmd_postamble}
-
-    dump_frames: false
 
     on_frame:
       # -----------------------------------------------------------------------

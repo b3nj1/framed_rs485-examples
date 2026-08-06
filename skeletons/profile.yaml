@@ -1,6 +1,7 @@
 # =============================================================================
-# <Vendor> <Controller family> — equipment profile: <NAME>
+# <Vendor> <Controller family> — <NAME>
 # -----------------------------------------------------------------------------
+# Role:        contributor skeleton  (change to "package (optional)" after copying)
 # Status:      tested-on-hardware | UNTESTED-draft
 # Tested on:   <controller model>, firmware <rev>; <ESP board>; ESPHome <x.y.z>;
 #              rs485_frame <component version / git ref>
@@ -13,8 +14,8 @@
 #   - <Name (@handle)> — <contribution>  <link>
 # =============================================================================
 #
-# Equipment profile skeleton. Copy to <vendor>/<controller-family>/<name>.yaml.
-# An equipment profile is keyed on the frame_type(s) it OWNS (either direction).
+# Optional package skeleton. Copy to <vendor>/<controller-family>/<name>.yaml.
+# An optional package is keyed on the frame_type(s) it OWNS (either direction).
 # It adds to the shared hub via `id: !extend <hub_id>` and ships only its own
 # decoders + entities. It MUST NOT define uart/framing/crc/secrets — those live in
 # bus.yaml. The hub fires EVERY on_frame handler whose prefix matches, so multiple

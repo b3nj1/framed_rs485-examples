@@ -1,8 +1,9 @@
 # =============================================================================
 # !!! UNTESTED / SPECULATIVE DRAFT — USE ENTIRELY AT YOUR OWN RISK !!!  (see bus.yaml)
 # =============================================================================
-# Jandy AquaLink RS — equipment profile: SWG / salt chlorinator (UNTESTED DRAFT)
+# Jandy AquaLink RS — SWG / salt chlorinator (UNTESTED DRAFT)
 # -----------------------------------------------------------------------------
+# Role:        package (optional)
 # Status:      UNTESTED-draft
 # Tested on:   (none — community reverse-engineering only)
 # Bus:         9600 baud, 8N1  (see bus.yaml)
