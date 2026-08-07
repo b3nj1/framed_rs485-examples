@@ -9,6 +9,32 @@ All notable changes to the published configuration interface are documented here
 - **MINOR** — additive: a new package file, a new optional substitution *with a default*, a new entity.
 - **PATCH** — decoder or bug fix with no interface change.
 
+## [4.0.0] - 2026-08-06
+
+### Changed
+
+- **`cmd_element_bytes` default changed from `"4"` to `"1"`; all `button_command` values now
+  explicit byte arrays.** Each `button_command:` entry in `example-device.yaml` is now an unquoted
+  YAML list of individual bytes, in the order they're sent on the wire, instead of a list of 4-byte
+  hex words. E.g. `[0x80000000, 0x80000000]` becomes `[0x80, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00,
+  0x00]`. This removes the confusing "element_bytes / truncation" concept entirely: every list entry
+  is now literally what a bus sniff shows. **Backward compatibility:** existing user configurations
+  that define custom `button_command` values must either rewrite them to byte-array form or
+  explicitly override `cmd_element_bytes: "4"` in their own device config to keep the old 4-byte
+  mode. (github.com/b3nj1/rs485_frame-examples#3)
+
+- **New `hayward/aqualogic/secondary_button.yaml` package** for buttons requiring a different wire
+  format — specifically, the wired-local preamble `[0x00, 0x02]` needed by legacy-firmware
+  (main board v2.85) menu/display-centric buttons (Service, Plus, Minus, Lights, Menu, Left,
+  Right). Supersedes the old `btn_element_bytes: "2"` override guidance documented in the
+  3.2.0-rc1 pass. `secondary_button.yaml` reads the same `${secondary_cmd_*}` substitutions
+  (`secondary_cmd_preamble`, `secondary_cmd_postamble`, `secondary_cmd_element_bytes`) which
+  `example-device.yaml` supplies with wired-local defaults. Auxiliary relay buttons (Filter,
+  Pool/Spa Mode, AUX 1-14, Valve 3-4) remain unaffected and work fine on both firmware generations
+  with the standard wireless preamble. (github.com/b3nj1/rs485_frame-examples#3)
+
+---
+
 ## [3.2.0] - 2026-08-04
 
 ### Added

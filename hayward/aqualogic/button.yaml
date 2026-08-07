@@ -6,14 +6,16 @@
 # Include once per button you want to expose in Home Assistant.
 # The button sends the value(s) through the pool hub using the hub's command_format by
 # default (set via cmd_preamble / cmd_postamble in your device config). To override the
-# wire format for a specific button — e.g. Service (wired preamble only) or System Off
-# (wireless always) — pass the btn_preamble / btn_postamble vars in the include entry.
+# wire format for a specific button — e.g. System Off (wireless always) — pass the
+# btn_preamble / btn_postamble vars in the include entry. For buttons needing the wired-local
+# or legacy-firmware wire format, use secondary_button.yaml instead (see below).
 #
 # Required vars:
 #   button_name     Friendly name shown in Home Assistant.
 #   button_command  One or more hex values as an unquoted YAML list — the
-#                    value field(s) written back-to-back after the preamble.
-#                    Most buttons use the same value twice: [0x80000000, 0x80000000].
+#                    value field(s) written back-to-back after the preamble, where each
+#                    list entry is one raw byte as it appears on the bus.
+#                    Most buttons use the same value twice: [0x80, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00, 0x00].
 #
 # Optional vars:
 #   disabled_by_default  Whether to hide the entity in HA by default (default: "false").
@@ -21,26 +23,27 @@
 #                   Defaults to ${cmd_preamble} (the hub's role preamble).
 #   btn_postamble   Trailing pad bytes as an unquoted YAML list (e.g. []).
 #                   Defaults to ${cmd_postamble}.
-#   btn_element_bytes  Value element width in bytes (default: ${cmd_element_bytes}, usually "4").
+#   btn_element_bytes  Value element width in bytes (default: ${cmd_element_bytes}, usually "1").
 #   btn_endian      Byte order: "big" or "little" (default: ${cmd_endian}).
 #
-# Command values confirmed from live bus captures and community reverse-engineering:
+# Command values confirmed from live bus captures and community reverse-engineering
+# (expressed here as 4-byte big-endian hex words; in button_command: use as individual bytes):
 #   Filter       0x80000000    Pool/Spa Mode  0x40000000
 #   Plus         0x20000000    Menu           0x02000000
 #   Minus        0x10000000    Right          0x01000000
 #   Left         0x04000000    Lights         0x00010000
 #   System Off   0x08000000    (always btn_preamble wireless)
-#   Service      0x08000000    (always btn_preamble wired local [0x00,0x02], btn_postamble [])
+#   Service      0x08000000    (wired local — use secondary_button.yaml instead)
 #   AUX 1-14, Valve 3-4: see example-device.yaml for per-relay command values.
 # For a standard toggle button, use the same value for both list entries, e.g.
-# button_command: [0x80000000, 0x80000000]. For a long-press / hold pattern (e.g. unlocking
-# a menu by holding Left+Right), see the "Menu Unlock" example in example-device.yaml — it
-# pairs two button includes with independent values instead of repeating one.
+# button_command: [0x80, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00, 0x00]. For a long-press / hold
+# pattern (e.g. unlocking a menu by holding Left+Right), see the "Menu Unlock" example in
+# example-device.yaml — it pairs two button includes with independent values instead of repeating one.
 #
 # Legacy firmware (main board v2.85 and similar) note: menu/display-centric buttons above
-# (Service, Plus, Minus, Lights, Menu, Left, Right) may need btn_element_bytes: "2" with the
-# value truncated to its top 2 bytes instead of the 4-byte values above — see the worked
-# table and citation in example-device.yaml's button section.
+# (Service, Plus, Minus, Lights, Menu, Left, Right) require the wired-local wire format and
+# reduced byte width. Use secondary_button.yaml with the legacy-firmware `button_command` value
+# (see example-device.yaml's button section for the conversion table).
 # =============================================================================
 
 defaults:
