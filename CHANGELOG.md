@@ -9,6 +9,19 @@ All notable changes to the published configuration interface are documented here
 - **MINOR** — additive: a new package file, a new optional substitution *with a default*, a new entity.
 - **PATCH** — decoder or bug fix with no interface change.
 
+## [4.0.1] - 2026-08-06
+
+### Documentation
+
+- **`hayward/aqualogic/bus.yaml`: documented the `0x01 0x03` display frame's "Display Flags"
+  trailing byte.** When that byte is non-zero it is not a NUL terminator but a bitmask (bit 0:
+  blink selection, bit 1: Display Revision, bit 2: Display Backlight Time, bit 3: Display Beeper
+  Status, bits 4-7 reserved), confirmed against the AQ-CO-SERIAL manual and matched against every
+  previously-observed value. Explains why settings like Display Light and Beeper never show their
+  actual value on the bus: those are rendered entirely locally on the physical keypad, and this
+  frame only flags which locally-saved setting is showing. No decoder behavior changed — both
+  existing frame decoders already skip non-printable trailing bytes. (github.com/b3nj1/rs485_frame-examples#2)
+
 ## [4.0.0] - 2026-08-06
 
 ### Changed
