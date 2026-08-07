@@ -139,6 +139,11 @@ rs485_frame:
       # one screen; the lambda updates whichever sensors match the current screen.
       #
       # Encoding: bit 7 of each byte = blink flag; '_' = degree symbol (UTF-8).
+      # Trailing byte: 0x00 (NUL) marks text end. When non-zero, it is a "Display Flags" bitmask:
+      #   bit 0: blink selection (P-4 only), bit 1-3: display revision/backlight/beeper status,
+      #   bits 4-7: reserved. Each controller inserts its value for the requested setting on its
+      #   display (each display maintains its own settings for backlight and beeper).
+      #
       # Stack buffers throughout -- no heap allocation during decode. Text sensors
       # deduplicate internally; numeric sensors use throttle filters.
       #
