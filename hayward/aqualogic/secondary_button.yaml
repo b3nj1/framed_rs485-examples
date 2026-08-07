@@ -1,0 +1,48 @@
+# =============================================================================
+# Hayward AquaLogic / ProLogic — per-button package (secondary wire role)
+# -----------------------------------------------------------------------------
+# Role: package as template
+#
+# Include once per button you want to expose in Home Assistant using the
+# secondary wire format — typically the wired-local preamble `[0x00, 0x02]`
+# for legacy-firmware compatibility (main board v2.85 and similar).
+# This file mirrors button.yaml but defaults to `${secondary_cmd_*}` substitutions
+# instead of `${cmd_*}`, allowing buttons requiring a different wire format to
+# coexist with standard buttons on the same hub.
+#
+# Required vars:
+#   button_name     Friendly name shown in Home Assistant.
+#   button_command  One or more hex values as an unquoted YAML list — the
+#                    value field(s) written back-to-back after the preamble.
+#                    For legacy firmware, use the 2-byte top-word form,
+#                    e.g. [0x08, 0x00, 0x08, 0x00] for Service.
+#
+# Optional vars:
+#   disabled_by_default  Whether to hide the entity in HA by default (default: "false").
+#   btn_preamble    Frame-type preamble bytes as an unquoted YAML list (e.g. [0x00, 0x03]).
+#                   Defaults to ${secondary_cmd_preamble} (usually wired-local [0x00, 0x02]).
+#   btn_postamble   Trailing pad bytes as an unquoted YAML list (e.g. []).
+#                   Defaults to ${secondary_cmd_postamble} (usually [] for wired).
+#   btn_element_bytes  Value element width in bytes (default: ${secondary_cmd_element_bytes}, usually "1").
+#   btn_endian      Byte order: "big" or "little" (default: ${cmd_endian}).
+# =============================================================================
+
+defaults:
+  button_name: "Pool Button (Secondary)"
+  disabled_by_default: "false"
+  btn_preamble: ${secondary_cmd_preamble}
+  btn_postamble: ${secondary_cmd_postamble}
+  btn_element_bytes: ${secondary_cmd_element_bytes}
+  btn_endian: ${cmd_endian}
+
+button:
+  - platform: rs485_frame
+    rs485_frame_id: pool
+    name: "${button_name}"
+    value: ${button_command}
+    disabled_by_default: ${disabled_by_default}
+    command_format:
+      preamble: ${btn_preamble}
+      value_element_bytes: ${btn_element_bytes}
+      endian: ${btn_endian}
+      postamble: ${btn_postamble}
