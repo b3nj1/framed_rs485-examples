@@ -17,7 +17,8 @@
 # active AllButton emulator.
 #
 # HOW TO USE THIS FILE
-#   1. Copy and rename it. Fill in all substitutions: below (name, board, GPIO pins).
+#   1. Copy and rename it. Fill in all substitutions: (name, GPIO pins, ...) and
+#      esp32: (board, variant, ...) below.
 #   2. In packages.rs485.files, uncomment the optional packages you have and
 #      delete the rest. bus.yaml is REQUIRED.
 #   3. Add wifi_ssid / wifi_password to your secrets.yaml.
@@ -25,7 +26,6 @@
 substitutions:
   name: jandy-observer
   friendly_name: Jandy AquaLink Observer
-  board: BOARDXX             # see https://esphome.io/components/esp32
   tx_pin: GPIOXX             # if no data received, try swapping tx_pin and rx_pin
   rx_pin: GPIOXX
   flow_control_pin: GPIOXX   # DE/RE direction pin; delete this and the uart: line below
@@ -39,7 +39,8 @@ esphome:
   friendly_name: ${friendly_name}
 
 esp32:
-  board: ${board}
+  board: BOARDXX             # board/variant: see https://esphome.io/components/esp32
+  variant: VARIANTXX
   framework:
     type: esp-idf
 
@@ -71,7 +72,7 @@ uart:
 packages:
   rs485:
     url: https://github.com/b3nj1/rs485_frame-examples
-    ref: v3.2.0          # PINNED release tag — bump deliberately to update
+    ref: v4.0.2          # PINNED release tag — bump deliberately to update
     refresh: 1d
     files:
       # Required package: stays uncommented.

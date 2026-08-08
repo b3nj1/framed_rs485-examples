@@ -35,6 +35,7 @@ esphome:
 
 esp32:
   board: BOARDXX    # replace with your board identifier; see https://esphome.io/components/esp32
+  variant: VARIANTXX # e.g. esp32s3; must match your hardware
   framework:
     type: esp-idf
 
