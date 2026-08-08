@@ -142,6 +142,10 @@ packages:
         vars: { bit: 4, led_name: "Spa Mode", device_class: running }
       - path: hayward/aqualogic/led.yaml
         vars: { bit: 5, led_name: "Filter", device_class: running }
+      # Filter LED blinking (not solid) = pump running at low speed. Disabled by default --
+      # only relevant if you have a variable-speed pump; enable in HA Settings > Entities.
+      - path: hayward/aqualogic/blink_led.yaml
+        vars: { bit: 5, led_name: "Pump Low Speed", device_class: running, disabled_by_default: "true" }
       - path: hayward/aqualogic/led.yaml
         vars: { bit: 6, led_name: "Lights", device_class: light }
       - path: hayward/aqualogic/led.yaml

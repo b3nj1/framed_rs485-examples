@@ -109,7 +109,7 @@ they all land in one merged hub.
 matches a received frame, not just the first. So one frame type can be decoded by several optional
 packages: the Hayward LED-mask frame `0x01 0x02` is registered by `bus.yaml` (panel bits + display
 sensors) and `heater.yaml` (heater active bit). `led.yaml` does not add an `on_frame` handler;
-instead it polls the `g_led_mask` global that `bus.yaml` updates on every `0x01 0x02` frame.
+instead it polls the `g_led_solid_mask` global that `bus.yaml` updates on every `0x01 0x02` frame.
 **Register one `on_frame` handler per package, guard only your own bytes/bits, and never assume sole
 ownership of a frame type.**
 
@@ -166,7 +166,7 @@ files:
 ```
 
 `button.yaml` adds one button that sends `button_command` through the hub's `command_format`;
-`led.yaml` adds one binary_sensor that polls `g_led_mask` bit `${bit}` (it adds no `on_frame`
+`led.yaml` adds one binary_sensor that polls `g_led_solid_mask` bit `${bit}` (it adds no `on_frame`
 handler — `bus.yaml` maintains the mask). Keeping the command and the status bit as separate
 includes lets a device expose a button with no status LED, or a status LED with no button. For
 local-copy use the `!include` form works the same:

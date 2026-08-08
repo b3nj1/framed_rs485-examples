@@ -9,6 +9,41 @@ All notable changes to the published configuration interface are documented here
 - **MINOR** — additive: a new package file, a new optional substitution *with a default*, a new entity.
 - **PATCH** — decoder or bug fix with no interface change.
 
+## [4.1.0] - 2026-08-09
+
+### Added
+
+- **New `hayward/aqualogic/blink_led.yaml` package as template.** Hayward's `[0x01,0x02]` "Update
+  LEDs" frame carries a second 4-byte little-endian mask (blinking LEDs, same bit layout as the
+  existing solid mask) that was previously read but discarded. `bus.yaml` now decodes it into a
+  new `g_led_blink_mask` global (the existing solid-LED global is renamed `g_led_solid_mask` —
+  internal `globals:` id, not a public interface item); `blink_led.yaml` is a new sibling of
+  `led.yaml` — same `bit`/`led_name`/`device_class`/`disabled_by_default` vars, its own
+  `led_blink_bit_${bit}` entity id, and its lambda reads `g_led_blink_mask` instead of
+  `g_led_solid_mask`. `led.yaml` itself is unchanged (still reads `g_led_solid_mask`, same
+  `led_bit_${bit}` id — no interface change there). Ships one example usage:
+  `hayward/aqualogic/example-device.yaml` now includes a disabled-by-default "Pump Low Speed"
+  entity (`hayward/aqualogic/blink_led.yaml`, `bit: 5`) — the Filter LED blinking (rather than
+  solid) indicates the pump is running at low speed.
+
+### Documentation
+
+- **`generic/discovery.yaml`, `hayward/aqualogic/diagnostics.yaml`,
+  `hayward/aqualogic/example-device.yaml`: tightened and reordered comment blocks.**
+  `discovery.yaml`'s UART setup comment now leads with `flow_control_pin` (the setting most
+  likely to cause a "captures nothing" symptom) ahead of baud/parity/stop_bits guidance.
+  `diagnostics.yaml`'s RAM-cost comment now states the worst-case number (~36 KB at the defaults)
+  up front instead of after an intermediate arithmetic walkthrough. `example-device.yaml`'s
+  transmit-role comment now leads with a compact per-role preamble/postamble table and promotes a
+  previously buried warning that the wired-local role impersonates the main panel and can collide
+  with physical keypresses; its legacy-firmware button note is condensed from per-button
+  instructions to a single pointer at the `secondary_button.yaml` alternatives, keeping the issue
+  link for full history. No interface or decoder behavior changed.
+
+- **`hayward/aqualogic/bus.yaml`: removed a dangling citation to `SETTLED_FACTS.md`**, a
+  workspace-root-only file that doesn't exist in this repo, from the `display_cols` comment. No
+  interface or decoder behavior changed.
+
 ## [4.0.2] - 2026-08-07
 
 ### Changed
@@ -266,6 +301,7 @@ Initial released interface. Restructured the monolithic per-controller YAMLs int
 - `generic/` discovery / sniffer / skeleton remain monolithic bootstrap tools (exempt from the
   package structure) with header notes pointing at it for real integrations.
 
+[4.1.0]: https://github.com/b3nj1/rs485_frame-examples/compare/v4.0.2...v4.1.0
 [4.0.2]: https://github.com/b3nj1/rs485_frame-examples/compare/v4.0.1...v4.0.2
 [4.0.1]: https://github.com/b3nj1/rs485_frame-examples/compare/v4.0.0...v4.0.1
 [4.0.0]: https://github.com/b3nj1/rs485_frame-examples/compare/v3.2.0...v4.0.0
