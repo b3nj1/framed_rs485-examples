@@ -116,11 +116,15 @@ ownership of a frame type.**
 ## 5. The substitution contract
 
 A device config's `substitutions:` block contains everything the user fills in at setup time:
-`name`, `friendly_name`, `board`, `tx_pin`, `rx_pin`, `flow_control_pin`, and any values packages
-consume via `${...}`. The `esphome:`, `esp32:`, and `uart:` blocks are static templates that
+`name`, `friendly_name`, `tx_pin`, `rx_pin`, `flow_control_pin`, and any values packages
+consume via `${...}`. The `esphome:` and `uart:` blocks are static templates that
 reference substitutions via `${...}` and should not need editing. The sole exception is
 `flow_control_pin`: if your adapter auto-manages RS485 direction, delete the `flow_control_pin`
-substitution and the `flow_control_pin: ${flow_control_pin}` line from the `uart:` block. Per-vendor substitutions that packages consume (e.g. a
+substitution and the `flow_control_pin: ${flow_control_pin}` line from the `uart:` block.
+The `esp32:` block's `board`/`variant` are filled in directly (not substitutions) — ESPHome
+Device Builder raised a non-fatal error on the indirected `${board}` form, and `variant` matters
+more than `board` per the ESP32 platform docs (it must match the hardware to flash; `board` is
+mostly cosmetic pin-mapping). Per-vendor substitutions that packages consume (e.g. a
 transmit-role command preamble,
 temperature units) are documented in that family's `bus.yaml` header. **Scalar substitutions**
 follow last-write-wins, so defaults for purely scalar knobs (e.g. `temp_unit`) live in `bus.yaml`
@@ -285,6 +289,13 @@ and users' automations derive from these).
    `jandy/aqualink-rs/example-allbutton.yaml`) hardcodes `ref: vX.Y.Z` and stays on the old tag until
    someone edits it. Grep `ref: v` across the repo before tagging a release and bump every hit whose
    package files changed in that release.
+6. **Add the `CHANGELOG.md` footer link every time a version heading is added.** Each `## [X.Y.Z]`
+   heading is a Markdown reference link — it only renders as a link if a matching
+   `[X.Y.Z]: https://github.com/b3nj1/rs485_frame-examples/compare/v<prev>...vX.Y.Z` definition
+   exists at the bottom of the file. Adding a heading without its footer line silently leaves a
+   broken link; there is no lint that catches this, so it must be done by hand at the same time as
+   the heading, not deferred to "tagging time" (three versions in a row — 4.0.0, 4.0.1, 4.0.2 — were
+   missed this way because nothing said to do it until this guardrail was added).
 
 ## 9. `external_components` / staging ref
 

@@ -21,8 +21,9 @@
 # See CONTRIBUTING.md for the rules.
 #
 # The device config's substitutions: block contains everything the user fills in:
-# name, friendly_name, board, tx_pin, rx_pin, flow_control_pin, and any values
-# packages consume via ${...}. List-valued substitutions (e.g. command preamble)
+# name, friendly_name, tx_pin, rx_pin, flow_control_pin, and any values
+# packages consume via ${...}. board/variant are set directly in the esp32: block,
+# not substitutions. List-valued substitutions (e.g. command preamble)
 # MUST be defined only in the device file, never defaulted here, because they
 # concatenate when set in two places.
 # The uart: block belongs in the device config (id: <hub_id>_uart), not here.

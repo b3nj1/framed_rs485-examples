@@ -35,9 +35,9 @@ or adapter is needed.
 | B- | YELLOW | B- |
 | GND | GREEN | GND |
 
-Set the `board` substitution to a valid ESP32-S3 board name from
-https://esphome.io/components/esp32 (for example `esp32-s3-devkitc-1`) and the UART / flow-control
-pins to match the board.
+Set `board`/`variant` in the config's `esp32:` block to a valid ESP32-S3 board/variant name from
+https://esphome.io/components/esp32 (for example `board: esp32-s3-devkitc-1`, `variant: esp32s3`)
+and the UART / flow-control pins to match the board.
 
 ### Recommended framework: ESP-IDF
 
@@ -69,8 +69,8 @@ steps every time:
 
 1. **Copy** the family's `example-device.yaml` into your ESPHome directory and rename it (the name
    becomes your device's hostname).
-2. **Fill in `substitutions:`** — `board`, the UART pins, and any family-specific knob (e.g. Hayward's
-   transmit role `cmd_preamble`).
+2. **Fill in `substitutions:`** — the UART pins and any family-specific knob (e.g. Hayward's
+   transmit role `cmd_preamble`) — and the `esp32:` block's `board`/`variant`.
 3. **Uncomment the equipment you have** in the `packages.rs485.files` list and **delete the rest**.
    The `bus.yaml` line is required — leave it uncommented. Each AUX channel is a `button.yaml` entry
    (the command) and/or a `led.yaml` entry (the status light); the menu shows the pairing.

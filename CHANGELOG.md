@@ -9,6 +9,38 @@ All notable changes to the published configuration interface are documented here
 - **MINOR** — additive: a new package file, a new optional substitution *with a default*, a new entity.
 - **PATCH** — decoder or bug fix with no interface change.
 
+## [4.0.2] - 2026-08-07
+
+### Changed
+
+- **`esp32:` `board`/`variant` are now set directly, not via a `board` substitution.** Every
+  device config (`hayward/aqualogic/example-device.yaml`, `jandy/aqualink-rs/example-passive.yaml`,
+  `jandy/aqualink-rs/example-allbutton.yaml`) and standalone tool (`generic/sniffer.yaml`,
+  `generic/discovery.yaml`, `generic/skeleton.yaml`) now has `board: BOARDXX` / `variant: VARIANTXX`
+  directly in its `esp32:` block instead of a `board` substitution indirected through `${board}`.
+  The indirected form was raising a non-fatal error in the ESPHome Device Builder app. `variant` is
+  also newly required to fill in: per the ESP32 platform docs it must match the hardware exactly
+  (or flashing fails), making it more load-bearing than `board`, which is closer to a pin-mapping
+  convenience. Existing user configs are unaffected — this only changes the example templates users
+  copy from, not the packaged `bus.yaml`/family files pulled via `packages.rs485.files`.
+
+### Added
+
+- **`hayward/aqualogic/example-device.yaml`: explicit `display_cols` substitution**, following the
+  existing `temp_unit`/`temp_unit_short` pattern — the default (`20`) already lived in `bus.yaml`,
+  this just surfaces the override point in the file users actually edit.
+
+### Notes
+
+- Bundles the fixes from
+  [rs485_frame-examples#2](https://github.com/b3nj1/rs485_frame-examples/issues/2) (display
+  row-split, `display_cols`, "Display Flags" trailing byte) and
+  [rs485_frame-examples#3](https://github.com/b3nj1/rs485_frame-examples/issues/3) (legacy-firmware
+  2-byte button commands), both confirmed working by the reporter (poochkingdom) on real hardware
+  against this release's `-rc1` candidate, and
+  [rs485_frame-examples#4](https://github.com/b3nj1/rs485_frame-examples/issues/4) (sniffer
+  `payload_capture_bytes` truncation), confirmed fixed earlier. All three issues are now closed.
+
 ## [4.0.1] - 2026-08-06
 
 ### Documentation
@@ -234,6 +266,9 @@ Initial released interface. Restructured the monolithic per-controller YAMLs int
 - `generic/` discovery / sniffer / skeleton remain monolithic bootstrap tools (exempt from the
   package structure) with header notes pointing at it for real integrations.
 
+[4.0.2]: https://github.com/b3nj1/rs485_frame-examples/compare/v4.0.1...v4.0.2
+[4.0.1]: https://github.com/b3nj1/rs485_frame-examples/compare/v4.0.0...v4.0.1
+[4.0.0]: https://github.com/b3nj1/rs485_frame-examples/compare/v3.2.0...v4.0.0
 [3.2.0]: https://github.com/b3nj1/rs485_frame-examples/compare/v3.0.2...v3.2.0
 [3.0.2]: https://github.com/b3nj1/rs485_frame-examples/compare/v3.0.1...v3.0.2
 [3.0.1]: https://github.com/b3nj1/rs485_frame-examples/compare/v3.0.0...v3.0.1

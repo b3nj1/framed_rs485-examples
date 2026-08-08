@@ -12,7 +12,8 @@
 # HOW TO USE THIS FILE
 #   1. Copy it to your ESPHome configuration directory and rename it (the name
 #      becomes your device's hostname).
-#   2. Fill in all substitutions: below (name, board, GPIO pins, transmit role).
+#   2. Fill in all substitutions: (name, GPIO pins, transmit role, ...) and
+#      esp32: (board, variant, ...) below.
 #   3. In the packages.rs485.files list, uncomment the optional packages you have
 #      (pump-vsp.yaml, heater.yaml). The bus.yaml line is REQUIRED — leave it
 #      uncommented. LED and button entries are already active; rename labels to
@@ -36,7 +37,6 @@
 substitutions:
   name: aqualogic
   friendly_name: AquaLogic
-  board: BOARDXX             # see https://esphome.io/components/esp32
   tx_pin: GPIOXX             # if no data received, try swapping tx_pin and rx_pin
   rx_pin: GPIOXX
   flow_control_pin: GPIOXX   # DE/RE direction pin; delete this and the uart: line below
@@ -68,6 +68,9 @@ substitutions:
   temp_unit: "°F"
   temp_unit_short: "F"
 
+  # Display width in columns — passed to bus.yaml decoders. Legacy fw v2.85 uses "16"
+  display_cols: "20"
+
 esphome:
   name: ${name}
   friendly_name: ${friendly_name}
@@ -77,7 +80,8 @@ esphome:
 # software guard times. Arduino-framework users must use an auto-DE transceiver
 # chip (e.g. MAX13487, MAX22025) instead.
 esp32:
-  board: ${board}
+  board: BOARDXX             # board/variant: see https://esphome.io/components/esp32
+  variant: VARIANTXX
   framework:
     type: esp-idf
 
@@ -110,7 +114,7 @@ uart:
 packages:
   rs485:
     url: https://github.com/b3nj1/rs485_frame-examples
-    ref: v4.0.1          # PINNED release tag — bump deliberately to update (see README)
+    ref: v4.0.2          # PINNED release tag — bump deliberately to update (see README)
     refresh: 1d
     files:
       # Required package: stays uncommented.
