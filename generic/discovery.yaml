@@ -52,14 +52,15 @@ external_components:
   - source: github://b3nj1/esphome@v3.0.2
     components: [rs485_frame]
 
-# Set baud/parity/stop bits to match your bus. If you do not know the baud rate, let discovery
-# find it: uncomment discovery.baud_sweep below and the value here is just the starting point.
-# Parity and stop bits cannot be detected passively (a receiver decodes fine even when they
-# disagree with the sender); they only matter when you later transmit. Start with NONE / 1 and,
-# if commands are ignored, try EVEN then ODD parity and stop_bits: 2.
-# Set flow_control_pin to your adapter's DE/RE pin: on most half-duplex RS485 transceivers the
-# receiver is disabled unless DE/RE is driven, so without it you will capture nothing. Discovery
-# never transmits, so ESPHome simply holds this pin in the receive state.
+# flow_control_pin: your adapter's DE/RE pin. Most half-duplex transceivers keep RX
+# disabled until DE/RE is driven, so omitting this when your adapter needs it means
+# discovery captures nothing. Discovery never transmits, so ESPHome just holds it low.
+#
+# baud/parity/stop_bits: match your bus, or leave baud as a starting guess and
+# uncomment discovery.baud_sweep below to have discovery find it.
+# Parity/stop bits can't be detected passively (RX decodes fine even when they
+# disagree with the sender) — they only matter once you transmit. Start NONE/1;
+# if commands are later ignored, try EVEN then ODD parity, then stop_bits: 2.
 uart:
   id: bus_uart
   tx_pin: GPIOXX
