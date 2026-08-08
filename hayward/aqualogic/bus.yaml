@@ -96,7 +96,7 @@ rs485_frame:
       #    2     Check System
       #    3     Pool Mode
       #    4     Spa Mode
-      #    5     Filter  (flashing = pump low speed; not exposed by this profile)
+      #    5     Filter  (flashing = pump low speed; exposed via blink_led.yaml)
       #    6     Lights
       #    7     AUX 1
       #    8     AUX 2
@@ -118,19 +118,27 @@ rs485_frame:
       #   24     AUX 14
       #   25     Super Chlorinate
       #
-      # Stores the mask in g_led_mask (read by led.yaml polling binary sensors)
+      # Payload bytes 6-9: 32-bit little-endian mask of blinking LEDs (same bit
+      # layout as the solid mask above). Read by blink_led.yaml's polling binary
+      # sensors (e.g. bit 5 blinking = pump running at low speed).
+      #
+      # Stores the mask in g_led_solid_mask (read by led.yaml polling binary sensors)
       # and publishes it as hex to the led_mask_hex diagnostic text sensor.
       # -----------------------------------------------------------------------
       - frame_type: [0x01, 0x02]
         then:
           - lambda: |-
-              if (payload.size() < 6) return;
+              if (payload.size() < 10) return;
               uint32_t mask = uint32_t(payload[2]) | (uint32_t(payload[3]) << 8) |
                               (uint32_t(payload[4]) << 16) | (uint32_t(payload[5]) << 24);
-              id(g_led_mask) = mask;
+              id(g_led_solid_mask) = mask;
               char hex_buf[12];
               snprintf(hex_buf, sizeof(hex_buf), "0x%08X", static_cast<unsigned int>(mask));
               id(led_mask_hex).publish_state(std::string(hex_buf));
+
+              uint32_t blink_mask = uint32_t(payload[6]) | (uint32_t(payload[7]) << 8) |
+                                     (uint32_t(payload[8]) << 16) | (uint32_t(payload[9]) << 24);
+              id(g_led_blink_mask) = blink_mask;
 
       # -----------------------------------------------------------------------
       # Display frame (0x01 0x03) — display text + temperatures.
@@ -285,7 +293,10 @@ rs485_frame:
               }
 
 globals:
-  - id: g_led_mask
+  - id: g_led_solid_mask
+    type: uint32_t
+    initial_value: "0"
+  - id: g_led_blink_mask
     type: uint32_t
     initial_value: "0"
 

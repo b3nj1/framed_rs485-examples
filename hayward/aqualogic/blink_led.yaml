@@ -1,10 +1,12 @@
 # =============================================================================
-# Hayward AquaLogic / ProLogic — per-LED binary sensor package
+# Hayward AquaLogic / ProLogic — per-LED blink-state binary sensor package
 # -----------------------------------------------------------------------------
 # Role: package as template
 #
-# Include once per bit you want to expose in Home Assistant.
-# The lambda reads g_led_solid_mask (updated by bus.yaml on every [0x01,0x02] frame)
+# Sibling of led.yaml: same bit-numbering space, but polls the blinking-LED mask
+# instead of the solid-LED mask. Include once per bit whose blink state you want to
+# expose in Home Assistant (e.g. Filter blinking = pump running at low speed).
+# The lambda reads g_led_blink_mask (updated by bus.yaml on every [0x01,0x02] frame)
 # and polls it every 100 ms — no on_frame extension or explicit id: needed.
 #
 # Required vars:
@@ -23,7 +25,8 @@
 #   4  Spa Mode         10  AUX 3       17  AUX 7      24  AUX 14
 #   5  Filter*          11  AUX 4       18  AUX 8      25  Super Chlorinate
 #                       12  AUX 5       19  AUX 9
-# * bit 5 flashing (second 4-byte LE word in the LED frame) = pump running at low speed
+# * bit 5 blinking = pump running at low speed. See example-device.yaml's "Pump Low Speed"
+#   entity for the reference usage.
 #
 # Use the "LED Mask" diagnostic text sensor in bus.yaml to discover your
 # system's bit layout without a sniffer.
@@ -37,7 +40,7 @@ defaults:
 
 binary_sensor:
   - platform: template
-    id: led_bit_${bit}
+    id: led_blink_bit_${bit}
     name: "${led_name}"
     device_class: ${device_class}
     disabled_by_default: ${disabled_by_default}
@@ -45,4 +48,4 @@ binary_sensor:
 interval:
   - interval: 100ms
     then:
-      - lambda: "id(led_bit_${bit})->publish_state(bool(id(g_led_solid_mask) & (1UL << ${bit})));"
+      - lambda: "id(led_blink_bit_${bit})->publish_state(bool(id(g_led_blink_mask) & (1UL << ${bit})));"
