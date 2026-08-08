@@ -42,17 +42,16 @@ substitutions:
   flow_control_pin: GPIOXX   # DE/RE direction pin; delete this and the uart: line below
                              # if your adapter auto-manages direction
 
-  # Command format — all four knobs live here, not in bus.yaml, because ESPHome
-  # concatenates list-valued substitutions from packages instead of overriding them.
-  # Keeping them together avoids that footgun and makes the transmit role self-contained.
+  # Transmit role — pick ONE, set both cmd_preamble and cmd_postamble together
+  # (see bus.yaml header for the full role table):
+  #   Wireless (recommended): cmd_preamble: [0x00, 0x83, 0x01]  cmd_postamble: [0x00]
+  #   Wired remote:           cmd_preamble: [0x00, 0x03]         cmd_postamble: []
+  #   Wired local / main panel: cmd_preamble: [0x00, 0x02]       cmd_postamble: []
+  #     WARNING: impersonates the main panel. Can collide with physical keypresses.
   #
-  # Change preamble + postamble together to switch role:
-  #   Wireless (recommended, never collides with main panel):
-  #     cmd_preamble: [0x00, 0x83, 0x01]   cmd_postamble: [0x00]
-  #   Wired remote (frame type 0x0003):
-  #     cmd_preamble: [0x00, 0x03]          cmd_postamble: []
-  #   Wired local / main panel (frame type 0x0002, collision risk):
-  #     cmd_preamble: [0x00, 0x02]          cmd_postamble: []
+  # (Why all four command_format knobs live here and not bus.yaml: ESPHome
+  # concatenates list-valued substitutions from packages instead of overriding
+  # them, so splitting this across two files would double the bytes.)
 
   # Primary wireless role substitutions (newer-firmware, usually "4-byte" values):
   cmd_preamble: [0x00, 0x83, 0x01]   # unquoted YAML list — wireless default
@@ -185,17 +184,11 @@ packages:
         vars: { bit: 25, led_name: "Super Chlorinate", device_class: running, disabled_by_default: "true" }
 
       # --- Buttons — rename labels to match your load; remove buttons your panel lacks. ---
-      # Legacy firmware (main board v2.85 and similar "legacy generation" panels) note, per
-      # https://github.com/b3nj1/rs485_frame-examples/issues/3: the mainboard ignores the
-      # standard wireless command frames below for menu/display-centric buttons and requires
-      # a wired-local format instead. Auxiliary relay buttons (Filter, Pool/Spa Mode, AUX 1-14)
-      # are NOT affected — standard wireless works on both firmware generations. Community-tested
-      # on v2.85 (not independently verified on this repo's own hardware, which is newer firmware).
-      # For affected buttons, see the commented alternative blocks below each entry:
-      #   - Plus, Minus, Menu, Right, Left, Lights: comment out the active `- path: button.yaml` entry
-      #     and uncomment the corresponding `- path: secondary_button.yaml` block below it.
-      #   - Service: only its button_command value needs to change. Uncomment the alternative
-      #     `# vars:` line below its entry — no path change needed (already on secondary_button.yaml).
+      # Buttons below use the wireless format (works on most panels, our default).
+      # If a menu/display button (Plus, Minus, Menu, Right, Left, Lights, Service)
+      # doesn't respond, you likely have older firmware (e.g. v2.85): swap that
+      # button to its commented-out secondary_button.yaml alternative below.
+      # Full history: https://github.com/b3nj1/rs485_frame-examples/issues/3
       # Navigation and mode: active by default on every panel.
       - path: hayward/aqualogic/button.yaml
         vars: { button_name: "Filter", button_command: [0x80, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00, 0x00] }

@@ -38,14 +38,10 @@
 #                               "true" to log every frame as received, separately from
 #                               the periodic stats_table above).
 #
-# RAM cost while enabled: each distinct frame_type the sniffer discovers allocates
-# stats_max_unique_payloads * stats_payload_capture_bytes bytes of payload buffer
-# up front (plus smaller per-slot/per-entry bookkeeping on top), so at the
-# defaults (24 * 48 = 1152) all stats_max_frame_types: 32 slots filling amounts
-# to roughly 32 * 1152 = 36864 bytes (~36 KB) worst case -- lower
-# stats_max_frame_types/stats_max_unique_payloads/stats_payload_capture_bytes via
-# vars: if that is a meaningful fraction of your board's free heap. Comment this
-# file out again once you are done diagnosing either way.
+# RAM cost while enabled: up to ~36 KB worst case (32 frame types x 24 payloads x
+# 48 bytes at the defaults). Lower stats_max_frame_types / stats_max_unique_payloads /
+# stats_payload_capture_bytes via vars: if that's a meaningful chunk of your board's
+# free heap. Comment this file out again once you're done diagnosing.
 
 defaults:
   stats_interval: 30s
