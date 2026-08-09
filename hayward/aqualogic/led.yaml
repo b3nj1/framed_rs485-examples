@@ -4,7 +4,7 @@
 # Role: package as template
 #
 # Include once per bit you want to expose in Home Assistant.
-# The lambda reads g_led_solid_mask (updated by bus.yaml on every [0x01,0x02] frame)
+# The lambda reads g_led_mask (updated by bus.yaml on every [0x01,0x02] frame)
 # and polls it every 100 ms — no on_frame extension or explicit id: needed.
 #
 # Required vars:
@@ -45,4 +45,4 @@ binary_sensor:
 interval:
   - interval: 100ms
     then:
-      - lambda: "id(led_bit_${bit})->publish_state(bool(id(g_led_solid_mask) & (1UL << ${bit})));"
+      - lambda: "id(led_bit_${bit})->publish_state(bool(id(g_led_mask) & (1UL << ${bit})));"
