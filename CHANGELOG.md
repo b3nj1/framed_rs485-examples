@@ -16,12 +16,12 @@ All notable changes to the published configuration interface are documented here
 - **New `hayward/aqualogic/blink_led.yaml` package as template.** Hayward's `[0x01,0x02]` "Update
   LEDs" frame carries a second 4-byte little-endian mask (blinking LEDs, same bit layout as the
   existing solid mask) that was previously read but discarded. `bus.yaml` now decodes it into a
-  new `g_led_blink_mask` global (the existing solid-LED global is renamed `g_led_solid_mask` —
-  internal `globals:` id, not a public interface item); `blink_led.yaml` is a new sibling of
-  `led.yaml` — same `bit`/`led_name`/`device_class`/`disabled_by_default` vars, its own
-  `led_blink_bit_${bit}` entity id, and its lambda reads `g_led_blink_mask` instead of
-  `g_led_solid_mask`. `led.yaml` itself is unchanged (still reads `g_led_solid_mask`, same
-  `led_bit_${bit}` id — no interface change there). Ships one example usage:
+  new `g_led_blink_mask` global; the existing solid-LED global `g_led_mask` is unchanged — only the
+  blink mask is a new global. `blink_led.yaml` is a new sibling of `led.yaml` — same
+  `bit`/`led_name`/`device_class`/`disabled_by_default` vars, its own `led_blink_bit_${bit}` entity
+  id, and its lambda reads `g_led_blink_mask` instead of `g_led_mask`. `led.yaml` itself is
+  unchanged (still reads `g_led_mask`, same `led_bit_${bit}` id — no interface change there). Ships
+  one example usage:
   `hayward/aqualogic/example-device.yaml` now includes a disabled-by-default "Pump Low Speed"
   entity (`hayward/aqualogic/blink_led.yaml`, `bit: 5`) — the Filter LED blinking (rather than
   solid) indicates the pump is running at low speed.
