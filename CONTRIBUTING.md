@@ -298,6 +298,15 @@ implementation detail).
    broken link; there is no lint that catches this, so it must be done by hand at the same time as
    the heading, not deferred to "tagging time" (three versions in a row — 4.0.0, 4.0.1, 4.0.2 — were
    missed this way because nothing said to do it until this guardrail was added).
+7. **Bump every `external_components: source: github://b3nj1/esphome@vX.Y.Z` pin every release,
+   unconditionally** — unlike guardrail 5's `ref:` (only bump the families whose own package files
+   changed), this pin tracks the `esphome` fork's own release tag, which now moves in lockstep with
+   every `rs485_frame-examples` release regardless of which example families changed (see the
+   workspace `release-tagging` skill's no-exceptions cross-repo tagging rule). Grep
+   `github://b3nj1/esphome@` across the repo before tagging; every real `source:` field (not the
+   illustrative `@rs485_frame` example in `skeletons/bus.yaml`) must match the new version. Missed
+   for five releases in a row — stuck at `v3.0.2` through `v4.0.2` — before this guardrail was added
+   2026-08-09.
 
 ## 9. `external_components` / staging ref
 
