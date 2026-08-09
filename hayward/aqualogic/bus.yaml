@@ -55,7 +55,7 @@ substitutions:
   temp_unit_short: "F"  # set to "C" for Celsius regions
   # LCD width in characters per row -- hardware-dependent, not a protocol constant.
   # Default (20) matches this repo's own hardware-verified captures (2 lines x 20 =
-  # 40 chars, SETTLED_FACTS.md). A Goldline AquaLogic v2.85 unit was independently
+  # 40 chars). A Goldline AquaLogic v2.85 unit was independently
   # reported wrapping at 16 chars/line (2x16) instead -- set display_cols: "16" if
   # your panel's rows look truncated or run past the edge of a 20-char row.
   display_cols: "20"
