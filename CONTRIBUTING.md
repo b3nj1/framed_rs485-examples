@@ -308,9 +308,9 @@ own lambda code can reference it via `id(...)`, same as an entity id/name).
    missed this way because nothing said to do it until this guardrail was added).
 7. **Bump every `external_components: source: github://b3nj1/esphome@vX.Y.Z` pin every release,
    unconditionally** — unlike guardrail 5's `ref:` (only bump the families whose own package files
-   changed), this pin tracks the `esphome` fork's own release tag, which now moves in lockstep with
-   every `rs485_frame-examples` release regardless of which example families changed (see the
-   workspace `release-tagging` skill's no-exceptions cross-repo tagging rule). Grep
+   changed), this pin tracks the `esphome` fork's own release tag, which always moves in lockstep
+   with every `rs485_frame-examples` release, with no exceptions, regardless of which example
+   families changed. Grep
    `github://b3nj1/esphome@` across the repo before tagging; every real `source:` field (not the
    illustrative `@rs485_frame` example in `skeletons/bus.yaml`) must match the new version. Missed
    for five releases in a row — stuck at `v3.0.2` through `v4.0.2` — before this guardrail was added

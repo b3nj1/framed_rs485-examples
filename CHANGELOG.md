@@ -40,9 +40,8 @@ All notable changes to the published configuration interface are documented here
   instructions to a single pointer at the `secondary_button.yaml` alternatives, keeping the issue
   link for full history. No interface or decoder behavior changed.
 
-- **`hayward/aqualogic/bus.yaml`: removed a dangling citation to `SETTLED_FACTS.md`**, a
-  workspace-root-only file that doesn't exist in this repo, from the `display_cols` comment. No
-  interface or decoder behavior changed.
+- **`hayward/aqualogic/bus.yaml`: removed a dangling doc citation from the `display_cols`
+  comment.** No interface or decoder behavior changed.
 
 ## [4.0.2] - 2026-08-07
 
