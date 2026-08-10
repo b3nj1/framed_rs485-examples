@@ -264,12 +264,20 @@ indexing, and never block. The full list with rationale lives on the
 
 ## 8a. Versioning and breaking changes
 
-Pointing users at this repo makes the package files a **published interface**. The breaking surface
-is: file **paths**, the hub **`id:`** (entities use `rs485_frame_id:`), **substitution
-names/semantics** and which are required, entity **`id:` / `name:`** (Home Assistant entity_ids
-and users' automations derive from these), and **`globals: id:`** (a user's own lambda code can
-reference it via `id(...)`, same as an entity id/name — renaming one is not just an internal
-implementation detail).
+Pointing users at this repo makes the package files a **published interface**. The breaking
+surface is defined by a principle, not a fixed list: **any named identifier reachable via
+`id(...)` in user-authored lambda code is part of the breaking surface**, exactly as much as an
+entity's Home Assistant `entity_id` is — renaming one is never just an internal implementation
+detail, because a user's own lambda code, automation, or dashboard may already reference it.
+File **paths** and **substitution names/semantics** (and which substitutions are required) are
+breaking for the same underlying reason: they're names a user's own config already references.
+
+Known examples of this surface today (non-exhaustive — reason from the principle above for any
+identifier type not yet listed here, including ones invented later, e.g. a new `script: id:` or a
+new component's `id:`): file **paths**, the hub **`id:`** (entities use `rs485_frame_id:`),
+**substitution names/semantics** and which are required, entity **`id:` / `name:`** (Home
+Assistant entity_ids and users' automations derive from these), and **`globals: id:`** (a user's
+own lambda code can reference it via `id(...)`, same as an entity id/name).
 
 **Guardrails:**
 
