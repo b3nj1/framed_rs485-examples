@@ -7,8 +7,9 @@
 #              rs485_frame @ github://b3nj1/esphome@v3.0.2
 # Bus:         19200 baud, 8N2
 # Owns frames: gate [0x01,0x01]; value frames per command_format (wireless
-#              [0x00,0x83,0x01] by default); decodes panel LEDs [0x01,0x02] and
-#              the display [0x01,0x03]
+#              [0x00,0x83,0x01] by default); decodes panel LEDs [0x01,0x02],
+#              the display [0x01,0x03], and the [0x04,0x0A] container that
+#              carries the same two payloads earlier in the cycle
 # Offsets:     payload-relative — payload[0..1] = frame_type, data starts at payload[2]
 # References:  https://github.com/swilson/aqualogic
 #              Display text patterns (Spa/Pool/Air Temp, Chlorinator %, Salt Level):
@@ -86,7 +87,10 @@ rs485_frame:
 
     on_frame:
       # -----------------------------------------------------------------------
-      # Panel LED status frame (0x01 0x02).
+      # Panel LED status frame (0x01 0x02), display frame (0x01 0x03), and the
+      # 0x04 0x0A container that carries both earlier in the cycle -- one
+      # trigger, one lambda, dispatched by payload shape (rs485_frame supports
+      # up to 4 frame_type alternates per on_frame entry).
       #
       # Payload bytes 2-5: 32-bit little-endian mask of solid-lit LEDs.
       # Confirmed bit positions (solid mask, swilson + ChaseDurand + live captures):
@@ -124,23 +128,7 @@ rs485_frame:
       #
       # Stores the mask in g_led_mask (read by led.yaml polling binary sensors)
       # and publishes it as hex to the led_mask_hex diagnostic text sensor.
-      # -----------------------------------------------------------------------
-      - frame_type: [0x01, 0x02]
-        then:
-          - lambda: |-
-              if (payload.size() < 10) return;
-              uint32_t mask = uint32_t(payload[2]) | (uint32_t(payload[3]) << 8) |
-                              (uint32_t(payload[4]) << 16) | (uint32_t(payload[5]) << 24);
-              id(g_led_mask) = mask;
-              char hex_buf[12];
-              snprintf(hex_buf, sizeof(hex_buf), "0x%08X", static_cast<unsigned int>(mask));
-              id(led_mask_hex).publish_state(std::string(hex_buf));
-
-              uint32_t blink_mask = uint32_t(payload[6]) | (uint32_t(payload[7]) << 8) |
-                                     (uint32_t(payload[8]) << 16) | (uint32_t(payload[9]) << 24);
-              id(g_led_blink_mask) = blink_mask;
-
-      # -----------------------------------------------------------------------
+      #
       # Display frame (0x01 0x03) — display text + temperatures.
       #
       # The controller cycles through multiple display screens. Each frame shows
@@ -155,141 +143,189 @@ rs485_frame:
       # Stack buffers throughout -- no heap allocation during decode. Text sensors
       # deduplicate internally; numeric sensors use throttle filters.
       #
+      # Container frame (0x04 0x0A). For [0x01,0x02]/[0x01,0x03] the LED/display
+      # body above starts at payload[2]; for this frame payload[2..3] is an
+      # unexplained but constant 83 00 header, followed by zero or more tagged
+      # sub-blocks, each possibly absent: a 0x02 tag then the same 8-byte LED
+      # body, and/or a 0x03 tag then the same display body (running to the end
+      # of the payload). Bodies are byte-identical to their standalone-frame
+      # counterparts, so this frame's LED/display state updates before the
+      # separate 01 02/01 03 frames arrive later in the same cycle.
+      #
       # The heater-mode latch is decoded separately by heater.yaml's own
-      # [0x01,0x03] handler so it stays with the heater profile.
+      # [0x01,0x03]/[0x04,0x0A] handler so it stays with the heater profile.
       # -----------------------------------------------------------------------
-      - frame_type: [0x01, 0x03]
+      - frame_type: [[0x01, 0x02], [0x01, 0x03], [0x04, 0x0A]]
         then:
           - lambda: |-
+              // Shared parse routines -- written once, called at whichever offset
+              // this frame's layout puts the LED/display body at.
+              auto parse_led = [](const uint8_t *body, size_t avail) {
+                if (avail < 8) return;
+                uint32_t mask = uint32_t(body[0]) | (uint32_t(body[1]) << 8) |
+                                (uint32_t(body[2]) << 16) | (uint32_t(body[3]) << 24);
+                id(g_led_mask) = mask;
+                char hex_buf[12];
+                snprintf(hex_buf, sizeof(hex_buf), "0x%08X", static_cast<unsigned int>(mask));
+                id(led_mask_hex).publish_state(std::string(hex_buf));
+
+                uint32_t blink_mask = uint32_t(body[4]) | (uint32_t(body[5]) << 8) |
+                                       (uint32_t(body[6]) << 16) | (uint32_t(body[7]) << 24);
+                id(g_led_blink_mask) = blink_mask;
+              };
+
               // BUF_LEN sized to cover Hayward Pro Logic's widest displays (~40 chars per
               // line) plus UTF-8 degree-symbol expansion (each '_' becomes 2 bytes).
               // static: allocated once in .bss at program start -- no per-call stack
               // pressure and no heap, matching the hub's setup-time buffer discipline.
-              const size_t BUF_LEN = 128;
-              static char text[BUF_LEN];
-              static char blink[BUF_LEN];
-              // Encoding: strip bit 7 (blink flag); map '_' to UTF-8 degree symbol.
-              uint8_t tlen = 0;
-              // Blinking text: extract only bytes that had bit 7 set.
-              uint8_t blen = 0;
-              bool isblink = false;
-              for (size_t i = 2; i < payload.size() && tlen < (BUF_LEN-2); i++) {
-                uint8_t b = payload[i];
-                isblink = bool(b > 0x7F);
-                b &= 0x7f;
-                if (b < 0x20 || b > 0x7E) continue;
-                if (b == '_') {
-                  if (tlen + 2 <= (BUF_LEN-2)) {
-                   text[tlen++] = '\xC2'; text[tlen++] = '\xB0';
-                   if (isblink) { blink[blen++] = '\xC2'; blink[blen++] = '\xB0'; }
+              auto parse_display = [](const uint8_t *body, size_t avail) {
+                const size_t BUF_LEN = 128;
+                static char text[BUF_LEN];
+                static char blink[BUF_LEN];
+                // Encoding: strip bit 7 (blink flag); map '_' to UTF-8 degree symbol.
+                uint8_t tlen = 0;
+                // Blinking text: extract only bytes that had bit 7 set.
+                uint8_t blen = 0;
+                bool isblink = false;
+                for (size_t i = 0; i < avail && tlen < (BUF_LEN-2); i++) {
+                  uint8_t b = body[i];
+                  isblink = bool(b > 0x7F);
+                  b &= 0x7f;
+                  if (b < 0x20 || b > 0x7E) continue;
+                  if (b == '_') {
+                    if (tlen + 2 <= (BUF_LEN-2)) {
+                     text[tlen++] = '\xC2'; text[tlen++] = '\xB0';
+                     if (isblink) { blink[blen++] = '\xC2'; blink[blen++] = '\xB0'; }
+                    }
+                  } else {
+                    text[tlen++] = char(b);
+                    if (isblink) blink[blen++] = char(b);
                   }
-                } else {
-                  text[tlen++] = char(b);
-                  if (isblink) blink[blen++] = char(b);
                 }
-              }
-              while (tlen > 0 && text[tlen - 1] == ' ') tlen--;
-              text[tlen] = '\0';
+                while (tlen > 0 && text[tlen - 1] == ' ') tlen--;
+                text[tlen] = '\0';
 
-              // Publish full display text. One std::string allocation per frame at the
-              // publish_state call; the text sensor deduplicates unchanged values.
-              id(display_text).publish_state(std::string(text, tlen));
+                // Publish full display text. One std::string allocation per frame at the
+                // publish_state call; the text sensor deduplicates unchanged values.
+                id(display_text).publish_state(std::string(text, tlen));
 
-              while (blen > 0 && blink[blen - 1] == ' ') blen--;
-              blink[blen] = '\0';
-              id(display_blink).publish_state(std::string(blink, blen));
+                while (blen > 0 && blink[blen - 1] == ' ') blen--;
+                blink[blen] = '\0';
+                id(display_blink).publish_state(std::string(blink, blen));
 
-              // Row-split view of the same text, chunked into ${display_cols}-char rows
-              // to match how the physical LCD actually wraps -- width varies by panel,
-              // see the display_cols substitution above.
-              // Screen-name patterns below ("Pool Temp 85°F") are matched against the
-              // full unsplit `text`, not these rows -- a pattern can straddle a row
-              // boundary, so parsing must never read from display_row1..4.
-              {
-                const size_t cols = ${display_cols};
-                const char *rows[4] = {nullptr, nullptr, nullptr, nullptr};
-                size_t row_len[4] = {0, 0, 0, 0};
-                for (size_t row = 0; row < 4; row++) {
-                  size_t start = row * cols;
-                  if (start >= tlen) break;
-                  size_t len = (cols < (size_t(tlen) - start)) ? cols : (size_t(tlen) - start);
-                  size_t end = start + len;
-                  while (end > start && text[end - 1] == ' ') end--;
-                  rows[row] = text + start;
-                  row_len[row] = end - start;
+                // Row-split view of the same text, chunked into ${display_cols}-char rows
+                // to match how the physical LCD actually wraps -- width varies by panel,
+                // see the display_cols substitution above.
+                // Screen-name patterns below ("Pool Temp 85°F") are matched against the
+                // full unsplit `text`, not these rows -- a pattern can straddle a row
+                // boundary, so parsing must never read from display_row1..4.
+                {
+                  const size_t cols = ${display_cols};
+                  const char *rows[4] = {nullptr, nullptr, nullptr, nullptr};
+                  size_t row_len[4] = {0, 0, 0, 0};
+                  for (size_t row = 0; row < 4; row++) {
+                    size_t start = row * cols;
+                    if (start >= tlen) break;
+                    size_t len = (cols < (size_t(tlen) - start)) ? cols : (size_t(tlen) - start);
+                    size_t end = start + len;
+                    while (end > start && text[end - 1] == ' ') end--;
+                    rows[row] = text + start;
+                    row_len[row] = end - start;
+                  }
+                  id(display_row1).publish_state(std::string(rows[0] ? rows[0] : "", row_len[0]));
+                  id(display_row2).publish_state(std::string(rows[1] ? rows[1] : "", row_len[1]));
+                  id(display_row3).publish_state(std::string(rows[2] ? rows[2] : "", row_len[2]));
+                  id(display_row4).publish_state(std::string(rows[3] ? rows[3] : "", row_len[3]));
                 }
-                id(display_row1).publish_state(std::string(rows[0] ? rows[0] : "", row_len[0]));
-                id(display_row2).publish_state(std::string(rows[1] ? rows[1] : "", row_len[1]));
-                id(display_row3).publish_state(std::string(rows[2] ? rows[2] : "", row_len[2]));
-                id(display_row4).publish_state(std::string(rows[3] ? rows[3] : "", row_len[3]));
-              }
 
-              // Display screens are mutually exclusive per frame; use else-if chains
-              // to skip unrelated checks once the current screen is identified.
-              //
-              // Temperature screens ("Pool Temp", "Spa Temp", "Air Temp"):
-              // Pattern: "Pool Temp 85°F" — parse digits after keyword + whitespace.
-              // Degree symbol '_' was already converted to UTF-8 \xC2\xB0 above;
-              // the digit loop stops naturally at the non-digit byte.
-              // (swilson/aqualogic core.py confirms these three screen names.)
-              if (strstr(text, "Temp")) {
-                const char *p;
-                p = strstr(text, "Pool Temp");
-                if (p) {
-                  p += 9; while (*p == ' ') p++;
-                  float v = 0; bool ok = false;
-                  while (*p >= '0' && *p <= '9') { v = v * 10.0f + float(*p++ - '0'); ok = true; }
-                  if (ok) id(pool_temp).publish_state(v);
+                // Display screens are mutually exclusive per frame; use else-if chains
+                // to skip unrelated checks once the current screen is identified.
+                //
+                // Temperature screens ("Pool Temp", "Spa Temp", "Air Temp"):
+                // Pattern: "Pool Temp 85°F" — parse digits after keyword + whitespace.
+                // Degree symbol '_' was already converted to UTF-8 \xC2\xB0 above;
+                // the digit loop stops naturally at the non-digit byte.
+                // (swilson/aqualogic core.py confirms these three screen names.)
+                if (strstr(text, "Temp")) {
+                  const char *p;
+                  p = strstr(text, "Pool Temp");
+                  if (p) {
+                    p += 9; while (*p == ' ') p++;
+                    float v = 0; bool ok = false;
+                    while (*p >= '0' && *p <= '9') { v = v * 10.0f + float(*p++ - '0'); ok = true; }
+                    if (ok) id(pool_temp).publish_state(v);
+                  }
+                  p = strstr(text, "Spa Temp");
+                  if (p) {
+                    p += 8; while (*p == ' ') p++;
+                    float v = 0; bool ok = false;
+                    while (*p >= '0' && *p <= '9') { v = v * 10.0f + float(*p++ - '0'); ok = true; }
+                    if (ok) id(spa_temp).publish_state(v);
+                  }
+                  p = strstr(text, "Air Temp");
+                  if (p) {
+                    p += 8; while (*p == ' ') p++;
+                    float v = 0; bool ok = false;
+                    while (*p >= '0' && *p <= '9') { v = v * 10.0f + float(*p++ - '0'); ok = true; }
+                    if (ok) id(air_temp).publish_state(v);
+                  }
+                // Chlorinator screens ("Pool Chlorinator 65%", "Spa Chlorinator 70%"):
+                // Pattern: digits before '%'. (swilson/aqualogic core.py confirms names.)
+                } else if (strstr(text, "Chlorinator")) {
+                  const char *p;
+                  p = strstr(text, "Pool Chlorinator");
+                  if (p) {
+                    p += 16; while (*p == ' ') p++;
+                    float v = 0; bool ok = false;
+                    while (*p >= '0' && *p <= '9') { v = v * 10.0f + float(*p++ - '0'); ok = true; }
+                    if (ok) id(pool_chlorinator).publish_state(v);
+                  }
+                  p = strstr(text, "Spa Chlorinator");
+                  if (p) {
+                    p += 15; while (*p == ' ') p++;
+                    float v = 0; bool ok = false;
+                    while (*p >= '0' && *p <= '9') { v = v * 10.0f + float(*p++ - '0'); ok = true; }
+                    if (ok) id(spa_chlorinator).publish_state(v);
+                  }
+                // Salt level screen ("Salt Level 2400 PPM" or "Salt Level 2.4 g/L"):
+                // Parse digits (and optional decimal point) before the unit word.
+                } else if (strstr(text, "Salt Level")) {
+                  const char *p = strstr(text, "Salt Level");
+                  if (p) {
+                    p += 10; while (*p == ' ') p++;
+                    float v = 0; bool ok = false;
+                    while (*p >= '0' && *p <= '9') { v = v * 10.0f + float(*p++ - '0'); ok = true; }
+                    if (ok) id(salt_level).publish_state(v);
+                  }
+                // Filter speed screen: "Filter Speed Off" or "Filter Speed XX% <reason>"
+                // where reason is a free-form string ("Speed1", "Heater1", "Spa Mode", etc.).
+                // Published as the text after the keyword, e.g. "Off", "40% Speed1".
+                } else if (strstr(text, "Filter Speed")) {
+                  const char *p = strstr(text, "Filter Speed");
+                  p += 12; while (*p == ' ') p++;
+                  id(filter_speed_text).publish_state(std::string(p));
                 }
-                p = strstr(text, "Spa Temp");
-                if (p) {
-                  p += 8; while (*p == ' ') p++;
-                  float v = 0; bool ok = false;
-                  while (*p >= '0' && *p <= '9') { v = v * 10.0f + float(*p++ - '0'); ok = true; }
-                  if (ok) id(spa_temp).publish_state(v);
+              };
+
+              // Dispatch on the frame_type prefix to find the right offset for the
+              // shared routines above.
+              if (payload.size() < 2) return;
+              if (payload[0] == 0x01 && payload[1] == 0x02) {
+                parse_led(payload.data() + 2, payload.size() - 2);
+              } else if (payload[0] == 0x01 && payload[1] == 0x03) {
+                parse_display(payload.data() + 2, payload.size() - 2);
+              } else if (payload[0] == 0x04 && payload[1] == 0x0A) {
+                // payload[2..3] is the constant 83 00 header; what follows is zero or
+                // more tagged sub-blocks (02 = LED, 03 = display), either possibly
+                // absent, in that order when present.
+                size_t i = 4;
+                if (i < payload.size() && payload[i] == 0x02 && i + 1 + 8 <= payload.size()) {
+                  parse_led(payload.data() + i + 1, 8);
+                  i += 1 + 8;
                 }
-                p = strstr(text, "Air Temp");
-                if (p) {
-                  p += 8; while (*p == ' ') p++;
-                  float v = 0; bool ok = false;
-                  while (*p >= '0' && *p <= '9') { v = v * 10.0f + float(*p++ - '0'); ok = true; }
-                  if (ok) id(air_temp).publish_state(v);
+                if (i < payload.size() && payload[i] == 0x03) {
+                  parse_display(payload.data() + i + 1, payload.size() - (i + 1));
                 }
-              // Chlorinator screens ("Pool Chlorinator 65%", "Spa Chlorinator 70%"):
-              // Pattern: digits before '%'. (swilson/aqualogic core.py confirms names.)
-              } else if (strstr(text, "Chlorinator")) {
-                const char *p;
-                p = strstr(text, "Pool Chlorinator");
-                if (p) {
-                  p += 16; while (*p == ' ') p++;
-                  float v = 0; bool ok = false;
-                  while (*p >= '0' && *p <= '9') { v = v * 10.0f + float(*p++ - '0'); ok = true; }
-                  if (ok) id(pool_chlorinator).publish_state(v);
-                }
-                p = strstr(text, "Spa Chlorinator");
-                if (p) {
-                  p += 15; while (*p == ' ') p++;
-                  float v = 0; bool ok = false;
-                  while (*p >= '0' && *p <= '9') { v = v * 10.0f + float(*p++ - '0'); ok = true; }
-                  if (ok) id(spa_chlorinator).publish_state(v);
-                }
-              // Salt level screen ("Salt Level 2400 PPM" or "Salt Level 2.4 g/L"):
-              // Parse digits (and optional decimal point) before the unit word.
-              } else if (strstr(text, "Salt Level")) {
-                const char *p = strstr(text, "Salt Level");
-                if (p) {
-                  p += 10; while (*p == ' ') p++;
-                  float v = 0; bool ok = false;
-                  while (*p >= '0' && *p <= '9') { v = v * 10.0f + float(*p++ - '0'); ok = true; }
-                  if (ok) id(salt_level).publish_state(v);
-                }
-              // Filter speed screen: "Filter Speed Off" or "Filter Speed XX% <reason>"
-              // where reason is a free-form string ("Speed1", "Heater1", "Spa Mode", etc.).
-              // Published as the text after the keyword, e.g. "Off", "40% Speed1".
-              } else if (strstr(text, "Filter Speed")) {
-                const char *p = strstr(text, "Filter Speed");
-                p += 12; while (*p == ' ') p++;
-                id(filter_speed_text).publish_state(std::string(p));
               }
 
 globals:
