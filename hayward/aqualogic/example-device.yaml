@@ -95,7 +95,7 @@ wifi:
 # Temporary — while rs485_frame is unreleased this tracks the staging branch.
 # Remove this block entirely once rs485_frame ships in an official ESPHome release.
 external_components:
-  - source: github://b3nj1/esphome@v4.1.0
+  - source: github://b3nj1/esphome@v4.2.0
     components: [rs485_frame]
 
 # UART — Hayward AquaLogic / ProLogic: 19200 baud, 8N2; fixed by protocol.
@@ -113,7 +113,7 @@ uart:
 packages:
   rs485:
     url: https://github.com/b3nj1/rs485_frame-examples
-    ref: v4.1.0          # PINNED release tag — bump deliberately to update (see README)
+    ref: v4.2.0          # PINNED release tag — bump deliberately to update (see README)
     refresh: 1d
     files:
       # Required package: stays uncommented.

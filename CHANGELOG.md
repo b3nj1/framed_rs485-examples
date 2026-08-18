@@ -9,6 +9,27 @@ All notable changes to the published configuration interface are documented here
 - **MINOR** — additive: a new package file, a new optional substitution *with a default*, a new entity.
 - **PATCH** — decoder or bug fix with no interface change.
 
+## [4.2.0] - 2026-08-18
+
+### Changed
+
+- **`hayward/aqualogic/bus.yaml`: panel LEDs and display text now also decode from the `[0x04,0x0A]`
+  container frame**, in addition to the existing standalone `[0x01,0x02]`/`[0x01,0x03]` frames. `04
+  0A` carries the same LED mask and display text earlier in the controller's cycle (`83 00` header
+  followed by optional `02`-tagged LED and/or `03`-tagged display sub-blocks, either possibly
+  absent), so `led_mask_hex`, the LED-mask/blink-mask globals, `Display`, `Display Blink`, and the
+  temperature/chlorinator/salt-level/filter-speed sensors can update sooner when a device sees `04
+  0A` on its bus. The previous separate `[0x01,0x02]` and `[0x01,0x03]` `on_frame:` entries are now
+  one combined entry (`frame_type: [[0x01,0x02],[0x01,0x03],[0x04,0x0A]]`) with two shared decode
+  routines instead of duplicated logic — same globals, same entity `id:`s, same sensor behavior for
+  existing frames; no interface change.
+
+- **`hayward/aqualogic/heater.yaml`: the heater-mode latch (`Heater Auto Mode`) now also matches
+  `[0x04,0x0A]`**, alongside its existing `[0x01,0x03]` handler, for the same earlier-arrival
+  benefit. It reuses its existing lightweight ASCII scan starting at `payload[2]` rather than
+  locating the container's exact tag offset — sufficient here because it only tests for substring
+  presence (`"Heater"`, `"Auto"`, `"Manual Off"`), not exact text publication. No interface change.
+
 ## [4.1.0] - 2026-08-09
 
 ### Added
@@ -300,6 +321,7 @@ Initial released interface. Restructured the monolithic per-controller YAMLs int
 - `generic/` discovery / sniffer / skeleton remain monolithic bootstrap tools (exempt from the
   package structure) with header notes pointing at it for real integrations.
 
+[4.2.0]: https://github.com/b3nj1/rs485_frame-examples/compare/v4.1.0...v4.2.0
 [4.1.0]: https://github.com/b3nj1/rs485_frame-examples/compare/v4.0.2...v4.1.0
 [4.0.2]: https://github.com/b3nj1/rs485_frame-examples/compare/v4.0.1...v4.0.2
 [4.0.1]: https://github.com/b3nj1/rs485_frame-examples/compare/v4.0.0...v4.0.1

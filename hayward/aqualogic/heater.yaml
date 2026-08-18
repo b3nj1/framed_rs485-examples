@@ -6,7 +6,7 @@
 # Tested on:   Hayward AquaLogic / ProLogic with gas/heat-pump heater; ESP32-S3;
 #              ESPHome 2026.6.0-dev; rs485_frame @ github://b3nj1/esphome@v3.0.2
 # Bus:         19200 baud, 8N2  (see bus.yaml)
-# Owns frames: [0x01,0x02] bit 0 (heater active LED); [0x01,0x03] heater-mode latch
+# Owns frames: [0x01,0x02] bit 0 (heater active LED); [0x01,0x03]/[0x04,0x0A] heater-mode latch
 # Offsets:     payload-relative — payload[0..1] = frame_type, data starts at payload[2]
 # References:  https://github.com/swilson/aqualogic
 #
@@ -15,9 +15,9 @@
 # =============================================================================
 #
 # Heater. Demonstrates the shared-frame case: it registers its own handlers on
-# [0x01,0x02] (reads only the heater LED, bit 0) and [0x01,0x03] (the heater-mode
-# latch), coexisting with the panel/lights/aux handlers on the same frame types.
-# Adds to the shared `pool` hub via `id: !extend pool`.
+# [0x01,0x02] (reads only the heater LED, bit 0) and [0x01,0x03]/[0x04,0x0A]
+# (the heater-mode latch), coexisting with the panel/lights/aux handlers on the
+# same frame types. Adds to the shared `pool` hub via `id: !extend pool`.
 
 globals:
   # Timestamp (millis) of the last heater-mode proof seen on the display.
@@ -43,10 +43,23 @@ rs485_frame:
       # screens and hold the last proven state, reverting after a 60 s timeout.
       # This re-decodes the display text (independent of bus.yaml's handler) so the
       # heater logic stays self-contained in this profile.
-      - frame_type: [0x01, 0x03]
+      #
+      # Also matches [0x04,0x0A]: its display sub-block (tag 0x03) is byte-identical
+      # to [0x01,0x03]'s body, and scanning from payload[2] regardless of frame type
+      # works for both. For 04 0A that range also covers the 83 00 header and, when
+      # present, the 02-tag LED sub-block ahead of the text -- those bytes are almost
+      # entirely non-printable (filtered out below), with at most a couple of stray
+      # printable characters from the LED mask bytes. A strstr() for "Heater" /
+      # "Auto" / "Manual Off" is unaffected: the real display text always survives
+      # intact and contiguous later in the buffer, so a coincidental match is not a
+      # real risk. No need to locate the exact tag offset the way bus.yaml's LED/
+      # display decode does -- that precision matters there because it publishes the
+      # text verbatim; here we only test for substring presence.
+      - frame_type: [[0x01, 0x03], [0x04, 0x0A]]
         then:
           - lambda: |-
-              // Stack buffer; strip the blink bit and keep printable ASCII.
+              // Stack buffer; strip the blink bit and keep printable ASCII. Starting at
+              // payload[2] works for both [0x01,0x03] and [0x04,0x0A] -- see comment above.
               const size_t BUF_LEN = 128;
               static char text[BUF_LEN];
               uint8_t tlen = 0;
@@ -92,4 +105,4 @@ binary_sensor:
     id: heater_auto
     name: "Heater Auto Mode"
     device_class: heat
-    # Latched and timed out by the on_frame: [0x01, 0x03] handler above.
+    # Latched and timed out by the on_frame: [0x01, 0x03]/[0x04, 0x0A] handler above.
