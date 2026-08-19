@@ -293,17 +293,13 @@ own lambda code can reference it via `id(...)`, same as an entity id/name).
    or be documented as required-in-device-config if list-valued (list defaults in packages
    concatenate rather than override — see §5).
 4. **`CHANGELOG.md` + migration notes** for every breaking change.
-5. **Bump every `example-device*.yaml`'s pinned `ref:` every release, unconditionally.** The tag
-   itself doesn't propagate anywhere automatically — each family's example device file (currently
+5. **`ref:` pins track this repo's own releases.** Each family's example device file (currently
    `hayward/aqualogic/example-device.yaml`, `jandy/aqualink-rs/example-passive.yaml`,
-   `jandy/aqualink-rs/example-allbutton.yaml`) hardcodes `ref: vX.Y.Z`, pointing at a tag of this same
-   repo, and stays there until someone edits it. Bump every hit to the version being tagged
-   regardless of whether that family's own package files changed this release — same reasoning as
-   guardrail 7: a `ref:` a full release behind is a stale, confusing pointer even when nothing in
-   that family moved, and "only bump when changed" was tried first and let a stale `hayward` pin
-   through the pre-tag check for `v4.3.0-rc1` (only guardrail 7's `source:` line in that same file
-   had changed, so the file wasn't counted as "changed" and its stale `ref:` passed silently). Grep
-   `ref: v` across the repo before tagging a release and bump every hit.
+   `jandy/aqualink-rs/example-allbutton.yaml`) hardcodes `ref: vX.Y.Z` in its `remote_package`
+   block, pointing at an immutable tag of this same repo. It always matches the current release —
+   a stale `ref:` would mean new content in this repo doesn't reach anyone using that file as their
+   starting point, so this is checked before every release regardless of which family's own
+   package files changed that cycle.
 6. **Add the `CHANGELOG.md` footer link every time a version heading is added.** Each `## [X.Y.Z]`
    heading is a Markdown reference link — it only renders as a link if a matching
    `[X.Y.Z]: https://github.com/b3nj1/rs485_frame-examples/compare/v<prev>...vX.Y.Z` definition
@@ -311,14 +307,10 @@ own lambda code can reference it via `id(...)`, same as an entity id/name).
    broken link; there is no lint that catches this, so it must be done by hand at the same time as
    the heading, not deferred to "tagging time" (three versions in a row — 4.0.0, 4.0.1, 4.0.2 — were
    missed this way because nothing said to do it until this guardrail was added).
-7. **Bump every `external_components: source: github://b3nj1/esphome@vX.Y.Z` pin every release,
-   unconditionally** — same as guardrail 5's `ref:`, this pin tracks the `esphome` fork's own release
-   tag, which always moves in lockstep with every `rs485_frame-examples` release, with no exceptions,
-   regardless of which example families changed. Grep
-   `github://b3nj1/esphome@` across the repo before tagging; every real `source:` field (not the
-   illustrative `@rs485_frame` example in `skeletons/bus.yaml`) must match the new version. Missed
-   for five releases in a row — stuck at `v3.0.2` through `v4.0.2` — before this guardrail was added
-   2026-08-09.
+7. **`external_components: source: github://b3nj1/esphome@vX.Y.Z` pins track the `esphome` fork's
+   own release**, kept current the same way and for the same reason as guardrail 5's `ref:` above —
+   every real `source:` field (not the illustrative `@rs485_frame` example in `skeletons/bus.yaml`)
+   matches the current release, regardless of which example families changed that cycle.
 
 ## 9. `external_components` / staging ref
 
