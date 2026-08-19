@@ -9,6 +9,21 @@ All notable changes to the published configuration interface are documented here
 - **MINOR** — additive: a new package file, a new optional substitution *with a default*, a new entity.
 - **PATCH** — decoder or bug fix with no interface change.
 
+## [4.4.0] - 2026-08-19
+
+### Added
+
+- **`tools/discovery_capture.py`: offline trigger/response correlation tool for reverse-engineering
+  new bus decoders from an ESPHome `dump_frames: true` log.** Given a trigger pattern and a
+  bundled or custom config, it groups the response frames that follow each occurrence, reconstructs
+  ambient tracker state (e.g. an LED-mask bitfield) at trigger time, and diffs across occurrences to
+  surface which bits/bytes/characters a given command actually moves. Ships with a Hayward
+  AquaLogic config covering the full wireless remote button set. Dev-only tooling — no change to
+  the published configuration interface (file paths, hub `id`, substitutions, entity `id`/`name`)
+  itself, but a new, substantial addition to the repo, versioned MINOR consistent with this
+  changelog's own precedent (4.3.0 versioned a docs-only fix the same way); see `tools/README.md`
+  for usage.
+
 ## [4.3.1] - 2026-08-18
 
 ### Fixed
