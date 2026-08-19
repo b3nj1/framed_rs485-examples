@@ -91,7 +91,7 @@ button:
   - platform: rs485_frame
     rs485_frame_id: pool
     name: "Heater"
-    value: [0x00000400, 0x00000400]  # toggles heater mode (Manual Off / Auto)
+    value: [0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x04, 0x00]  # toggles heater mode (Manual Off / Auto); 0x00000400 word x2, byte-expanded
 
 binary_sensor:
   - platform: template

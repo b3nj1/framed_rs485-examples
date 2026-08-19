@@ -9,6 +9,18 @@ All notable changes to the published configuration interface are documented here
 - **MINOR** — additive: a new package file, a new optional substitution *with a default*, a new entity.
 - **PATCH** — decoder or bug fix with no interface change.
 
+## [4.3.1] - 2026-08-18
+
+### Fixed
+
+- **`hayward/aqualogic/heater.yaml`: the Heater button now sends the correct wire bytes.** Its
+  `value:` was still written as two 4-byte packed hex words
+  (`[0x00000400, 0x00000400]`), left over from before the button `value:` list changed to one byte
+  per element (see `value_element_bytes: 1` on the hub's `command_format:`). That form silently
+  encoded the wrong on-wire bytes instead of failing validation. Corrected to eight individual
+  bytes (`[0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x04, 0x00]`), matching every other button in this
+  repo. No other button in this repo had the same packed-word pattern.
+
 ## [4.3.0] - 2026-08-18
 
 ### Changed
@@ -333,6 +345,7 @@ Initial released interface. Restructured the monolithic per-controller YAMLs int
 - `generic/` discovery / sniffer / skeleton remain monolithic bootstrap tools (exempt from the
   package structure) with header notes pointing at it for real integrations.
 
+[4.3.1]: https://github.com/b3nj1/rs485_frame-examples/compare/v4.3.0...v4.3.1
 [4.3.0]: https://github.com/b3nj1/rs485_frame-examples/compare/v4.2.0...v4.3.0
 [4.2.0]: https://github.com/b3nj1/rs485_frame-examples/compare/v4.1.0...v4.2.0
 [4.1.0]: https://github.com/b3nj1/rs485_frame-examples/compare/v4.0.2...v4.1.0
