@@ -9,6 +9,18 @@ All notable changes to the published configuration interface are documented here
 - **MINOR** — additive: a new package file, a new optional substitution *with a default*, a new entity.
 - **PATCH** — decoder or bug fix with no interface change.
 
+## [4.3.0] - 2026-08-18
+
+### Changed
+
+- **`CONTRIBUTING.md`'s offset-convention table: the `dump_frames` log row now matches actual
+  behavior.** The `rs485_frame` component's `dump_frames: true` RX log line now prints the full wire
+  frame (DLE/STX/ETX framing and CRC included), the same convention the TX log line already used —
+  previously RX printed only the de-stuffed, CRC-stripped payload. No example package file changes;
+  this only updates the table row describing how to translate a raw capture's byte offsets into the
+  `payload[]` convention used by `on_frame:` lambdas in this repo. See the
+  [hub component page](https://esphome.io/components/rs485_frame/) for the corrected log examples.
+
 ## [4.2.0] - 2026-08-18
 
 ### Changed
@@ -321,6 +333,7 @@ Initial released interface. Restructured the monolithic per-controller YAMLs int
 - `generic/` discovery / sniffer / skeleton remain monolithic bootstrap tools (exempt from the
   package structure) with header notes pointing at it for real integrations.
 
+[4.3.0]: https://github.com/b3nj1/rs485_frame-examples/compare/v4.2.0...v4.3.0
 [4.2.0]: https://github.com/b3nj1/rs485_frame-examples/compare/v4.1.0...v4.2.0
 [4.1.0]: https://github.com/b3nj1/rs485_frame-examples/compare/v4.0.2...v4.1.0
 [4.0.2]: https://github.com/b3nj1/rs485_frame-examples/compare/v4.0.1...v4.0.2
