@@ -85,3 +85,23 @@ def test_runs_end_to_end_against_real_fixture_with_bundled_config():
     assert result.returncode == 0
     assert "Lights" in result.stdout
     assert "SUMMARY" in result.stdout
+
+
+def test_no_auto_split_flag_reproduces_output_byte_for_byte_when_auto_split_had_no_effect():
+    # The bundled configs already hand-split every ambiguous bucket down to leaf named triggers,
+    # so on this fixture auto-split (the new default) has nothing left to do -- --no-auto-split
+    # must reproduce the exact same report, proving the old flat grouping still works unchanged.
+    fixture = Path(__file__).parent / "fixtures" / "lights_toggle_excerpt.log"
+    config = Path(__file__).parent.parent / "tools" / "configs" / "hayward_aqualogic.yaml"
+    default_result = subprocess.run(
+        [sys.executable, str(TOOL), str(fixture), "--config", str(config)],
+        capture_output=True,
+        text=True,
+    )
+    no_split_result = subprocess.run(
+        [sys.executable, str(TOOL), str(fixture), "--config", str(config), "--no-auto-split"],
+        capture_output=True,
+        text=True,
+    )
+    assert default_result.returncode == 0 == no_split_result.returncode
+    assert default_result.stdout == no_split_result.stdout
