@@ -1,0 +1,37 @@
+# Blind first pass over an unfamiliar Hayward AquaLogic capture: no button names assumed at
+# all, just the three broad command-family preambles (wireless remote, wired local panel,
+# wired remote panel), each split by its next two data bytes via discover_bytes. Run this
+# before hayward_aqualogic.yaml on a capture you don't already have a command table for --
+# see tools/README.md's "Two ways to start" section.
+
+crc_len: 2                        # Hayward's sum16_big_endian is 2 trailing bytes
+escape_mode: escape_byte          # Hayward stuffs a literal DLE (0x10) as DLE + 0x00, not DLE DLE
+escape_byte: 0x00
+default_window_ms: 3000
+default_until_next_trigger: true
+ascii_min_run: 8
+min_occurrences_for_signature: 2
+
+trackers:
+  # The LED-mask bitfield from hayward/aqualogic/bus.yaml's [0x01, 0x02] decoder -- a 32-bit
+  # little-endian field starting at payload offset 2. See tools/README.md's "offset/width/
+  # endian" section for how this offset/width/endian triple was derived.
+  - label: "LED Mask"
+    match_prefix: "01 02"
+    offset: 2
+    width: 4
+    endian: "little"
+
+triggers:
+  # discover_bytes: 2 is deliberate, not 1 -- Lights and the AUX-relay commands share a first
+  # data byte of 0x00, differing only in the *next* byte. discover_bytes: 1 would silently
+  # merge them into one bucket.
+  - label: "wireless"
+    payload_prefix: "00 83 01"
+    discover_bytes: 2
+  - label: "wired-local (main panel)"
+    payload_prefix: "00 02"
+    discover_bytes: 2
+  - label: "wired-remote"
+    payload_prefix: "00 03"
+    discover_bytes: 2

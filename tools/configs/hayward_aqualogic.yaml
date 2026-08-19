@@ -1,0 +1,123 @@
+# Named wireless AquaLogic buttons, from hayward/aqualogic/button.yaml's command table, plus
+# the LED-mask ambient tracker tracked two independent ways. Use once you already know what
+# you're looking at -- run hayward_aqualogic_discovery.yaml first on an unfamiliar capture.
+
+crc_len: 2                        # Hayward's sum16_big_endian is 2 trailing bytes
+escape_mode: escape_byte          # Hayward stuffs a literal DLE (0x10) as DLE + 0x00, not DLE DLE
+escape_byte: 0x00
+default_window_ms: 3000
+default_until_next_trigger: true
+ascii_min_run: 8
+min_occurrences_for_signature: 2
+
+trackers:
+  # Same 32-bit little-endian LED-mask field, tracked under both of its known carriers so they
+  # can be diffed against each other (see tools/README.md's "offset/width/endian" section for
+  # why 04 0a is a genuine second carrier under investigation, not a coincidental duplicate).
+  - label: "LED Mask (01 02)"
+    match_prefix: "01 02"
+    offset: 2
+    width: 4
+    endian: "little"
+  - label: "LED Mask (04 0a)"
+    # The tag byte (0x02 = LED body follows) is folded into match_prefix itself so offset: 5
+    # is only ever read when it's genuinely the mask's first byte -- see tools/README.md.
+    match_prefix: "04 0a 83 00 02"
+    offset: 5
+    width: 4
+    endian: "little"
+
+  # Three per-bit/per-character flag trackers (kind: flag_scan / paired_flag_and), covering both
+  # frame shapes each field appears in -- see tools/README.md's "Per-bit/per-character flags"
+  # section for the region/kind mechanics.
+  - label: "Display Text Flag"
+    # Bit 7 of each of the 40 display-text bytes is a per-character blink flag.
+    kind: flag_scan
+    bit: 7
+    regions:
+      - match_prefix: "01 03"
+        width: 40
+      - match_prefix: "04 0a 83 00"
+        subblock_tag: 0x03
+        width: 40
+  - label: "LED Mask Flag"
+    # The 8-byte 01 02/04 0a LED body is really two consecutive 4-byte masks back to back
+    # (solid state + a second mask); AND them to find which LEDs are flagged in both.
+    kind: paired_flag_and
+    regions:
+      - match_prefix: "01 02"
+        width: 4
+      - match_prefix: "04 0a 83 00"
+        subblock_tag: 0x02
+        width: 4
+  - label: "Local Setting Index Flag"
+    # The 01 03 frame's trailing byte (41st byte of the display-text sub-block), when non-zero,
+    # is a legacy "Display Flags" bitmask -- bit 0 is Display Blink Selection, P-4/legacy
+    # hardware only. index_set restricts this to the known P-4 local-settings index values so an
+    # unrelated odd value on newer hardware/firmware isn't misread as the flag.
+    kind: flag_scan
+    bit: 0
+    index_set: [0x05, 0x09]
+    regions:
+      - match_prefix: "01 03"
+        sub_offset: 40
+        width: 1
+      - match_prefix: "04 0a 83 00"
+        subblock_tag: 0x03
+        sub_offset: 40
+        width: 1
+    note: >
+      P-4/legacy hardware only (bit 0 "Blink Display Selection" is unused on newer generations).
+      index_set values are the P-4 pairs confirmed so far; extend if more are identified.
+
+triggers:
+  - label: "Filter"
+    payload_prefix: "00 83 01 80"
+  - label: "Pool/Spa Mode"
+    payload_prefix: "00 83 01 40"
+  - label: "Plus"
+    payload_prefix: "00 83 01 20"
+  - label: "Minus"
+    payload_prefix: "00 83 01 10"
+  - label: "Left"
+    payload_prefix: "00 83 01 04"
+  - label: "System Off / Service"
+    payload_prefix: "00 83 01 08"
+  - label: "Menu"
+    payload_prefix: "00 83 01 02"
+  - label: "Right"
+    payload_prefix: "00 83 01 01"
+  - label: "Lights"
+    payload_prefix: "00 83 01 00 01"
+  - label: "Heater1"
+    # A second, deeper AUX subcode field: buttons in this family share "00 83 01 00 00" (so the
+    # 2-byte "wireless (other/AUX, undecoded)" wildcard below collapsed them all into one [0000]
+    # bucket), with the real per-button code one byte further in (payload[5]). Confirmed via a
+    # a real capture: payload[5]=0x04 alternates the display text between
+    # "Auto Control" and "Manual Off" on every single press (16/16, 100%) -- a clean, two-value
+    # fixed-text signature, unlike the LED-mask side of this same button which only moves on
+    # some presses.
+    payload_prefix: "00 83 01 00 00 04"
+
+  # Catch-alls for anything not yet named above. Longest-payload_prefix precedence (see
+  # tools/README.md's "Trigger precedence" section) keeps a real press of one of the named
+  # buttons above from also being double-reported here.
+  - label: "wireless AUX-B (subcode)"
+    # Same "00 83 01 00 00" family as Heater1 above, one byte deeper than the general wildcard's
+    # discover_bytes:2 can see -- without this, payload[5]=0x00 (an idle/heartbeat report with no
+    # button involved), 0x01, and 0x02 (two more distinct, still-unnamed real buttons) all
+    # aliased into a single "[0000]" bucket that looked ~68% ambiguous. Split by payload[5]
+    # instead, each sub-bucket is a clean single-signal: 0x00 shows no LED delta on any
+    # occurrence (genuine heartbeat), 0x01 and 0x02 each toggle exactly one LED bit 100% of the
+    # time (0x2 and 0x4000 respectively, in a real capture).
+    payload_prefix: "00 83 01 00 00"
+    discover_bytes: 1
+  - label: "wireless (other/AUX, undecoded)"
+    payload_prefix: "00 83 01"
+    discover_bytes: 2
+  - label: "wired-local (main panel)"
+    payload_prefix: "00 02"
+    discover_bytes: 2
+  - label: "wired-remote"
+    payload_prefix: "00 03"
+    discover_bytes: 2
