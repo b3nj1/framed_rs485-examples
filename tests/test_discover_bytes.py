@@ -21,17 +21,35 @@ def test_discover_bytes_splits_a_wildcard_into_distinct_labeled_buckets(tmp_path
     assert labels == {"button [80]": 2, "button [40]": 1}
 
 
-def test_one_discriminator_byte_can_collapse_distinct_commands_real_fixture():
+def test_one_discriminator_byte_can_collapse_distinct_commands_real_fixture_with_auto_split_off():
     # Real-world finding: Lights (word 0x00010000) and a different AUX-family command (word
     # 0x00020000) share the same first data byte (0x00) -- a 1-byte discriminator merges them
-    # into one bucket, undercounting. This is not a bug in discover_bytes; it's why the tool
-    # reports occurrence counts per bucket -- a suspiciously merged-looking bucket is the signal
-    # to widen discover_bytes, not something the tool should silently paper over.
+    # into one bucket, undercounting. This used to be undetectable by the tool itself (only a
+    # suspiciously merged-looking occurrence count hinted at it) -- with auto_split at its new
+    # default, the merge no longer happens at all (see the next test); this one pins the
+    # explicitly-disabled ("old flat grouping") behavior, which --no-auto-split exists to
+    # preserve exactly.
     lines = parse_log(FIXTURE, crc_len=2)
-    config = Config(triggers=[TriggerDef("wireless", Matcher.from_hex("00 83 01"), discover_bytes=1)])
+    config = Config(
+        triggers=[TriggerDef("wireless", Matcher.from_hex("00 83 01"), discover_bytes=1)],
+        auto_split=False,
+    )
     report = analyze(lines, config)
     bucket_00 = next(tr for tr in report.trigger_reports if tr.label == "wireless [00]")
     assert len(bucket_00.occurrences) == 4  # 2x Lights + 2x the other 0x00xx-leading command
+
+
+def test_auto_split_default_separates_the_same_merged_bucket_without_widening_discover_bytes():
+    # Same fixture/config as above, but with auto_split at its new default (on): the tool alone
+    # notices the "wireless [00]" bucket's own trigger-frame bytes disagree beyond the 1
+    # discover_bytes already consumed, and splits it -- no hand-widened discover_bytes needed.
+    lines = parse_log(FIXTURE, crc_len=2)
+    config = Config(triggers=[TriggerDef("wireless", Matcher.from_hex("00 83 01"), discover_bytes=1)])
+    report = analyze(lines, config)
+    labels = {tr.label: len(tr.occurrences) for tr in report.trigger_reports}
+    assert "wireless [00]" not in labels
+    assert labels["wireless [00] [01]"] == 2  # Lights on + off
+    assert labels["wireless [00] [02]"] == 1  # the other 0x00xx-leading command
 
 
 def test_two_discriminator_bytes_disambiguates_the_same_family():

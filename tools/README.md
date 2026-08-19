@@ -41,8 +41,15 @@ A caveat the discovery config's own tests pin down: pick `discover_bytes` wide e
 Lights and its AUX-relay commands share a first data byte of `0x00`, differing only in the *next*
 byte — `discover_bytes: 1` would silently merge them into one bucket; `discover_bytes: 2` (what the
 bundled config uses) separates them. A bucket with a suspiciously large occurrence count, mixing
-what look like unrelated responses, is the signal to widen it, not something the tool tries to
-detect for you.
+what look like unrelated responses, used to be the only signal to widen it by hand — **`auto_split`
+(on by default) now catches this case itself**: it diffs each bucket's own trigger-frame bytes
+beyond whatever `payload_prefix`/`discover_bytes` already consumed, and if they're not constant
+across the bucket's occurrences, splits it into labeled sub-buckets (`"{label} [xx] [yy]"`),
+recursively — so a bucket that's still heterogeneous even one level deeper (a two-level collapse)
+gets caught in the same run instead of requiring a second hand-added `discover_bytes` trigger. Set
+`auto_split: false` in the config, or pass `--no-auto-split`, to get the old flat grouping back
+(e.g. to match a hand-authored config's own intentional `discover_bytes` granularity without the
+extra sub-bucket noise).
 
 ## Trigger precedence
 

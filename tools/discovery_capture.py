@@ -326,6 +326,13 @@ class Config:
     keepalive_payloads: list[bytes] = field(default_factory=list)
     triggers: list[TriggerDef] = field(default_factory=list)
     trackers: list[TrackerDef] = field(default_factory=list)
+    auto_split: bool = True
+    """Default on. When a trigger's own occurrences (already bucketed by label/discover_bytes)
+    disagree on the raw frame bytes beyond whatever payload_prefix/discover_bytes already
+    consumed, auto-partition them into labeled sub-buckets instead of silently reporting one
+    homogeneous-looking group that's actually several distinct buttons sharing a prefix -- see
+    `_auto_split_group`. Set false (CLI: --no-auto-split) to get the old flat grouping back, e.g.
+    to match a hand-authored config's own intentional discover_bytes granularity exactly."""
 
     @classmethod
     def from_dict(cls, d: dict) -> "Config":
@@ -381,6 +388,7 @@ class Config:
             keepalive_payloads=keepalive,
             triggers=triggers,
             trackers=trackers,
+            auto_split=d.get("auto_split", True),
         )
 
 
@@ -653,6 +661,58 @@ def _tracker_diff(pairs: list[tuple]) -> dict:
     return _tracker_diff_int(pairs)
 
 
+def _tail_diff_span(tails: list[bytes]) -> Optional[tuple[int, int]]:
+    """Finds the leading contiguous run of byte positions where `tails` disagree, starting at the
+    first position any two tails differ. Only the *leading* run is returned, not every differing
+    position -- a later, non-contiguous difference (e.g. positions 0 and 7 differ but 1-6 agree)
+    is left for a subsequent recursive call to find, once the leading run has been split off and
+    the constant bytes between it and position 7 no longer mask it. Returns None if every tail
+    (up to the shortest) agrees and none differ in length -- i.e. genuinely homogeneous."""
+    if len(tails) < 2:
+        return None
+    min_len = min(len(t) for t in tails)
+    diff_positions = [i for i in range(min_len) if len({t[i] for t in tails}) > 1]
+    if not diff_positions:
+        lengths = {len(t) for t in tails}
+        if len(lengths) > 1:
+            return (min_len, max(lengths))
+        return None
+    start = diff_positions[0]
+    diff_set = set(diff_positions)
+    end = start + 1
+    while end in diff_set:
+        end += 1
+    return (start, end)
+
+
+def _auto_split_group(label: str, occ_windows: list, consumed_start: int) -> dict[str, list]:
+    """Recursively partitions one label's occurrences by the raw trigger payload bytes beyond
+    `consumed_start` (whatever payload_prefix/discover_bytes already consumed). Each recursive
+    call only looks at bytes from its own `consumed_start` onward, so a two-level collapse (a
+    bucket that's still heterogeneous even after one split) gets caught in the same pass instead
+    of requiring a second hand-added discover_bytes trigger -- see rs485_frame-206.3.8's wired-
+    local "00 02 00 00" example, which needed exactly this: one split on the top-level 2-byte
+    subcode, then a second split 2 bytes deeper to separate Valve3/Valve4/Heater1."""
+    tails = [ow[0].line.payload[consumed_start:] for ow in occ_windows]
+    span = _tail_diff_span(tails)
+    if span is None:
+        return {label: occ_windows}
+    start, end = span
+    buckets: dict[bytes, list] = {}
+    order: list[bytes] = []
+    for ow, tail in zip(occ_windows, tails):
+        key = tail[start:end]
+        if key not in buckets:
+            buckets[key] = []
+            order.append(key)
+        buckets[key].append(ow)
+    result: dict[str, list] = {}
+    for key in order:
+        sub_label = f"{label} [{bytes_to_hex(key, sep='')}]"
+        result.update(_auto_split_group(sub_label, buckets[key], consumed_start + end))
+    return result
+
+
 def analyze(lines: list[LogLine], config: Config) -> Report:
     occurrences = _find_occurrences(lines, config)
     occ_by_line_no = {o.line.line_no: o for o in occurrences}
@@ -674,6 +734,19 @@ def analyze(lines: list[LogLine], config: Config) -> Report:
         if occ.label not in trigger_to_windows:
             label_order.append(occ.label)
         trigger_to_windows.setdefault(occ.label, []).append((occ, start, end))
+
+    if config.auto_split:
+        expanded_label_order: list[str] = []
+        expanded_windows: dict[str, list[tuple[Occurrence, float, float]]] = {}
+        for label in label_order:
+            occ_windows = trigger_to_windows[label]
+            trig = occ_windows[0][0].trigger
+            consumed_start = len(trig.matcher.prefix) + trig.discover_bytes
+            for sub_label, sub_windows in _auto_split_group(label, occ_windows, consumed_start).items():
+                expanded_label_order.append(sub_label)
+                expanded_windows[sub_label] = sub_windows
+        label_order = expanded_label_order
+        trigger_to_windows = expanded_windows
 
     covered_line_nos: set[int] = {occ.line.line_no for occ in occurrences}
     occurrence_reports: dict[int, OccurrenceReport] = {}
@@ -964,6 +1037,11 @@ config file (YAML), all fields optional except triggers[].payload_prefix and lab
   ascii_min_run: 8                   # min length of a printable run to auto-diff as text
   min_occurrences_for_signature: 2   # occurrences needed before a diff is reported
   keepalive_payloads: ["0101"]       # optional; omit to auto-detect (>=5 repeats)
+  auto_split: true                   # default; auto-partitions a trigger bucket whose own frame
+                                      #   bytes (beyond payload_prefix/discover_bytes) turn out to
+                                      #   be heterogeneous, recursively -- see "Two ways to start"
+                                      #   in tools/README.md. Set false (or --no-auto-split) for
+                                      #   the old flat grouping.
   triggers:
     # Precedence when >1 trigger matches the same line: longest payload_prefix wins (ties ->
     # first-listed wins). This is what lets a named trigger and a broader wildcard covering
@@ -1053,9 +1131,18 @@ def main(argv: Optional[list[str]] = None) -> int:
         action="store_true",
         help="hide RX groups and diff entries that don't match any configured tracker (requires >=1 tracker)",
     )
+    parser.add_argument(
+        "--no-auto-split",
+        action="store_true",
+        help="disable auto-splitting a trigger bucket whose own frame bytes are heterogeneous "
+        "(overrides config auto_split); use this to reproduce the old flat discover_bytes-only "
+        "grouping, e.g. to match a hand-authored config's own intentional granularity",
+    )
     args = parser.parse_args(argv)
 
     config = load_config(args.config)
+    if args.no_auto_split:
+        config.auto_split = False
     if args.crc_len is not None:
         config.crc_len = args.crc_len
     if args.escape_mode is not None:
