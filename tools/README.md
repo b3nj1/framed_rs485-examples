@@ -51,6 +51,22 @@ gets caught in the same run instead of requiring a second hand-added `discover_b
 (e.g. to match a hand-authored config's own intentional `discover_bytes` granularity without the
 extra sub-bucket noise).
 
+Another caveat specific to the broad wildcards a blind-discovery config leans on:
+`until_next_trigger` (default on) closes a trigger's response window at the next occurrence of
+**any** configured trigger, not just another occurrence of the *same* one — documented, intentional
+behavior (it's what lets a busy capture's triggers not run each other's windows over). With the
+narrow, hand-picked triggers of `configs/hayward_aqualogic.yaml` this rarely bites. But
+`hayward_aqualogic_discovery.yaml`'s wildcards (`discover_bytes` on a short, broad prefix) are wide
+enough to match most bus traffic, so in a busy capture — wired-panel activity happening during a
+wireless-button test, or rapid-fire discovery probing — a genuinely slow-but-real ack for one
+trigger can get truncated out of its own window because an unrelated trigger fires first, landing
+in *that* trigger's window instead (or becoming an orphan) and making the original occurrence look
+silent. The tool can't tell you this didn't happen; it can only tell you when it did — an
+occurrence report line reading `window closed early at line N (trigger "...")` means exactly that:
+don't trust that occurrence's `(no response)` at face value, go check what landed just after line
+N. There's no config knob to disable this — the window-closing behavior itself is unchanged; only
+the report's visibility into it is new.
+
 ## Trigger precedence
 
 A single line can match more than one configured trigger — e.g. a named `"Filter"` trigger
@@ -61,6 +77,23 @@ never more: **the longest matching `payload_prefix` wins** (the more specific tr
 relies on this deliberately — it mixes named buttons with wildcard catch-alls for anything not yet
 identified, in one file, and precedence is what keeps a named button's presses from also showing up
 a second time under the wildcard's bucket.
+
+**A response that also matches a trigger's own prefix is claimed by that trigger, not delivered as
+a response.** A line gets exactly one role: either it's a trigger occurrence, or it's a response
+candidate sitting inside some other trigger's open window — never both. So if a genuine ack for
+trigger A's window happens to also match trigger B's matcher, it becomes its own B occurrence
+instead of showing up in A's response groups: A reads `(no response)`/silent even though a real
+reply arrived, and the reply surfaces looking like an unrelated B press. This is a known,
+deliberate limitation (rs485_frame-206.3.11), not something the tool detects or warns about at
+runtime — it was judged not worth the structural rework (merging window computation and occurrence
+detection into one pass) relative to the risk on buses currently bundled here: every Hayward
+AquaLogic ack uses frame_type `04 0a`, which is disjoint from the wireless/wired-local/wired-remote
+wildcard prefixes (`00 83 01`/`00 02`/`00 03`), so no bundled config actually collides today. It's a
+real risk for any bus/config where an ack could plausibly share a command's prefix family (e.g. a
+future Jandy AquaLink RS config, or a Hayward config with wildcard prefixes broadened beyond what's
+bundled) — if you're writing triggers for a bus like that, keep each wildcard's prefix scoped so it
+can't also match that bus's own ack shape, or set `direction: tx` on a broad wildcard meant to
+enumerate outgoing commands only, so an RX-originated ack can never be claimed by it.
 
 ## Config shape
 
@@ -99,8 +132,17 @@ trackers:
   an HA-issued `TX` or an OEM-panel-issued `RX` — set `tx`/`rx` to restrict a trigger to one side.
 - `discover_bytes` — see "Two ways to start" above.
 - `keepalive_payloads` is optional; if omitted, any RX payload repeated at least 5 times is
-  auto-classified as ambient noise and excluded from silent-trigger/diffing logic (but still
-  counted in the report, never silently dropped).
+  auto-classified as ambient noise. This only ever affects whether a trigger occurrence is
+  reported `(no response)` vs `(baseline-only response)` — a trigger whose only in-window RX is a
+  baseline payload is `(baseline-only response)`, distinct from a truly silent trigger with no RX
+  at all; a report's `SUMMARY` line breaks out both counts separately. Auto-classified payloads are
+  never dropped from the response bit/ascii-diff, and the report prints an
+  `AUTO-KEEPALIVE BASELINE` banner listing exactly which payload(s) got folded in and their
+  whole-log repeat count, so a bus whose real ack happens to be a short, unvarying frame — and so
+  crosses the auto-detect threshold during any session with many button presses — never reads as
+  silent. If auto-detection folds in the wrong payload, override it by setting
+  `keepalive_payloads:` explicitly (which also suppresses the banner, since a manually-specified
+  baseline doesn't need to be surfaced back to you as a discovery).
 - `crc_len` defaults to 2 (Hayward AquaLogic's `sum16_big_endian`); set to 1 for a single-byte
   CRC variant, or 0 to leave the CRC bytes in the logical payload untouched.
 - `escape_mode` defaults to `double` (a literal DLE byte wire-stuffed as `DLE DLE`). Hayward's

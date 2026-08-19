@@ -414,7 +414,22 @@ class OccurrenceReport:
     ambient: dict[str, Optional[int]]  # tracker label -> value strictly before the trigger line
     after: dict[str, Optional[int]]  # tracker label -> first matching value inside the window
     groups: list[Group]
-    silent: bool
+    silent: bool  # True iff zero RX at all landed in this occurrence's window
+    early_close_label: Optional[str] = None
+    early_close_line_no: Optional[int] = None
+    """Set when `until_next_trigger` closed this occurrence's window earlier than its `window_ms`
+    cap would have allowed, because a DIFFERENT-labeled trigger fired first (rs485_frame-206.3.10)
+    -- names that trigger's effective label and TX/RX line number so a human reviewing a `silent`
+    or thin occurrence can see it wasn't necessarily a real non-response, just a window truncated
+    by unrelated bus traffic. Never set for same-label truncation (two occurrences of the same
+    trigger close together), which is the expected, well-tested norm, not a surprise worth
+    flagging."""
+    baseline_only: bool = False
+    """True iff RX landed in the window but every distinct payload was auto/manually classified
+    as keepalive baseline -- distinct from `silent` (which means no RX at all). A trigger whose
+    only observed response is a recurring ack must never collapse into `silent`, or a real,
+    deterministic response reads as "(no response)" purely because it repeated often enough to
+    cross the auto-keepalive frequency threshold."""
 
 
 @dataclass
@@ -441,6 +456,10 @@ class Report:
     orphan_span: Optional[tuple[float, float]]
     total_lines: int
     total_rx: int
+    keepalive_baseline_counts: dict[bytes, int] = field(default_factory=dict)
+    """Payloads auto-classified as keepalive baseline (>= `_KEEPALIVE_MIN_COUNT` repeats), mapped
+    to their whole-log RX count -- empty when `keepalive_payloads:` was set manually in config,
+    since a user-specified baseline doesn't need to be surfaced back to the user as a discovery."""
 
 
 def _find_occurrences(lines: list[LogLine], config: Config) -> list[Occurrence]:
@@ -472,8 +491,15 @@ def _find_occurrences(lines: list[LogLine], config: Config) -> list[Occurrence]:
 
 
 def _window_end(
-    occ: Occurrence, next_any_ts: Optional[float], config: Config
-) -> float:
+    occ: Occurrence, next_any: Optional[Occurrence], config: Config
+) -> tuple[float, Optional[Occurrence]]:
+    """Returns (window_end_ts, early_close_cause). `early_close_cause` is `next_any` itself, but
+    only when `until_next_trigger` actually cut the window short of what `window_ms` alone would
+    have allowed AND the trigger that caused it carries a *different* label -- same-label
+    truncation (two occurrences of the same trigger close together) is the well-tested, expected
+    norm (see test_overlapping_triggers_second_fires_before_first_windowms_cap_elapses) and isn't
+    worth flagging; an unrelated trigger silently eating part of this one's window is the
+    surprising case rs485_frame-206.3.10 exists to surface."""
     trig = occ.trigger
     effective_window_ms = trig.window_ms if trig.window_ms is not None else config.default_window_ms
     cap_ts = occ.line.ts + effective_window_ms / 1000.0
@@ -482,9 +508,10 @@ def _window_end(
         if trig.until_next_trigger is not None
         else config.default_until_next_trigger
     )
-    if until_next and next_any_ts is not None:
-        return min(cap_ts, next_any_ts)
-    return cap_ts
+    if until_next and next_any is not None and next_any.line.ts < cap_ts:
+        cause = next_any if next_any.label != occ.label else None
+        return next_any.line.ts, cause
+    return cap_ts, None
 
 
 def _fold(payloads_with_offsets: list[tuple[bytes, float, str]]) -> list[Group]:
@@ -506,23 +533,28 @@ def _is_baseline(payload: bytes, baseline: set[bytes]) -> bool:
 _KEEPALIVE_MIN_COUNT = 5
 
 
-def _auto_keepalive_baseline(lines: list[LogLine]) -> set[bytes]:
+def _auto_keepalive_baseline(lines: list[LogLine]) -> dict[bytes, int]:
     """A payload is treated as ambient keepalive noise only once it's repeated often enough to be
     distinguishable from a one-off response by frequency alone. In a sparse/synthetic log where
     every payload happens to appear once, nothing crosses the threshold and nothing is folded away
     -- the alternative (falling back to "most frequent, ties included") would misclassify every
     such payload as baseline, since a tie at count 1 includes all of them.
+
+    Returns the qualifying payload(s) mapped to their whole-log RX count, not just a bare set --
+    the count is what lets the report banner say *why* a payload got auto-classified (e.g.
+    "AUTO-KEEPALIVE BASELINE (n=12): 06"), since "repeated a lot" is otherwise invisible once the
+    payload has been folded into ambient noise.
     """
     counts: dict[bytes, int] = {}
     for line in lines:
         if line.direction == "RX" and line.payload is not None:
             counts[line.payload] = counts.get(line.payload, 0) + 1
     if not counts:
-        return set()
+        return {}
     max_count = max(counts.values())
     if max_count < _KEEPALIVE_MIN_COUNT:
-        return set()
-    return {p for p, c in counts.items() if c == max_count}
+        return {}
+    return {p: c for p, c in counts.items() if c == max_count}
 
 
 def _ambient_snapshot(
@@ -716,15 +748,21 @@ def _auto_split_group(label: str, occ_windows: list, consumed_start: int) -> dic
 def analyze(lines: list[LogLine], config: Config) -> Report:
     occurrences = _find_occurrences(lines, config)
     occ_by_line_no = {o.line.line_no: o for o in occurrences}
-    keepalive_baseline = (
-        set(config.keepalive_payloads) if config.keepalive_payloads else _auto_keepalive_baseline(lines)
-    )
+    if config.keepalive_payloads:
+        keepalive_baseline = set(config.keepalive_payloads)
+        keepalive_baseline_counts: dict[bytes, int] = {}
+    else:
+        keepalive_baseline_counts = _auto_keepalive_baseline(lines)
+        keepalive_baseline = set(keepalive_baseline_counts)
 
     windows: list[tuple[Occurrence, float, float]] = []  # (occ, start_ts, end_ts)
+    early_close_cause: dict[int, Occurrence] = {}  # occ line_no -> the occurrence that truncated it
     for idx, occ in enumerate(occurrences):
-        next_any_ts = occurrences[idx + 1].line.ts if idx + 1 < len(occurrences) else None
-        end_ts = _window_end(occ, next_any_ts, config)
+        next_any = occurrences[idx + 1] if idx + 1 < len(occurrences) else None
+        end_ts, cause = _window_end(occ, next_any, config)
         windows.append((occ, occ.line.ts, end_ts))
+        if cause is not None:
+            early_close_cause[occ.line.line_no] = cause
 
     # Keyed by effective label (post discover_bytes bucketing), not the raw TriggerDef.label --
     # one wildcard def can produce many distinct reported labels.
@@ -765,25 +803,41 @@ def analyze(lines: list[LogLine], config: Config) -> Report:
         in_window = [(line.payload, (line.ts - start) * 1000.0, line.raw_hex) for line in in_window_lines]
         groups = _fold(in_window)
         non_baseline_groups = [g for g in groups if not _is_baseline(g.payload, keepalive_baseline)]
-        silent = len(non_baseline_groups) == 0
+        silent = len(groups) == 0
+        baseline_only = len(groups) > 0 and len(non_baseline_groups) == 0
         ambient = _ambient_snapshot(config.trackers, lines, occ.line.line_no)
         after: dict[str, Optional[int]] = {t.label: None for t in config.trackers}
         for line in in_window_lines:
             for t in config.trackers:
                 if after[t.label] is None and t.matches(line.payload):
                     after[t.label] = t.extract(line.payload)
-        occurrence_reports[occ.line.line_no] = OccurrenceReport(occ, end, ambient, after, groups, silent)
+        cause = early_close_cause.get(occ.line.line_no)
+        occurrence_reports[occ.line.line_no] = OccurrenceReport(
+            occurrence=occ,
+            window_end_ts=end,
+            ambient=ambient,
+            after=after,
+            groups=groups,
+            silent=silent,
+            early_close_label=cause.label if cause is not None else None,
+            early_close_line_no=cause.line.line_no if cause is not None else None,
+            baseline_only=baseline_only,
+        )
 
     trigger_reports = []
     for label in label_order:
         occs = trigger_to_windows[label]
         occ_reports = [occurrence_reports[o.line.line_no] for o, _, _ in occs]
 
+        # Baseline payloads are NOT excluded here (unlike an earlier revision): a payload that's
+        # auto-classified as keepalive noise purely by frequency can still be the real, constant
+        # response to this exact trigger (rs485_frame-206.3.9) -- dropping it would both hide that
+        # a response happened at all and swallow a same-length occasional variant (a genuinely
+        # informative response) alongside the constant majority once too few non-baseline payloads
+        # remained to pass `min_occurrences_for_signature`.
         by_length: dict[int, list[bytes]] = {}
         for orep in occ_reports:
             for g in orep.groups:
-                if _is_baseline(g.payload, keepalive_baseline):
-                    continue
                 by_length.setdefault(len(g.payload), []).append(g.payload)
 
         bit_diffs = {}
@@ -827,7 +881,9 @@ def analyze(lines: list[LogLine], config: Config) -> Report:
     )
 
     total_rx = sum(1 for l in lines if l.direction == "RX")
-    return Report(trigger_reports, orphan_groups, orphan_span, len(lines), total_rx)
+    return Report(
+        trigger_reports, orphan_groups, orphan_span, len(lines), total_rx, keepalive_baseline_counts
+    )
 
 
 def filter_to_tracked(report: Report, trackers: list[TrackerDef]) -> Report:
@@ -855,12 +911,15 @@ def filter_to_tracked(report: Report, trackers: list[TrackerDef]) -> Report:
     for tr in report.trigger_reports:
         filtered_occs = [
             OccurrenceReport(
-                orep.occurrence,
-                orep.window_end_ts,
-                orep.ambient,
-                orep.after,
-                [g for g in orep.groups if keep(g.payload)],
-                orep.silent,
+                occurrence=orep.occurrence,
+                window_end_ts=orep.window_end_ts,
+                ambient=orep.ambient,
+                after=orep.after,
+                groups=[g for g in orep.groups if keep(g.payload)],
+                silent=orep.silent,
+                early_close_label=orep.early_close_label,
+                early_close_line_no=orep.early_close_line_no,
+                baseline_only=orep.baseline_only,
             )
             for orep in tr.occurrences
         ]
@@ -876,7 +935,14 @@ def filter_to_tracked(report: Report, trackers: list[TrackerDef]) -> Report:
             TriggerReport(tr.label, filtered_occs, filtered_bit_diffs, filtered_ascii_diffs, tr.tracker_diffs)
         )
     filtered_orphan = [g for g in report.orphan_groups if keep(g.payload)]
-    return Report(filtered_trigger_reports, filtered_orphan, report.orphan_span, report.total_lines, report.total_rx)
+    return Report(
+        filtered_trigger_reports,
+        filtered_orphan,
+        report.orphan_span,
+        report.total_lines,
+        report.total_rx,
+        report.keepalive_baseline_counts,
+    )
 
 
 def _all_printable(values: list[int]) -> bool:
@@ -952,12 +1018,26 @@ def _group_line(g: Group, prefix: str, ascii_min_run: int) -> str:
 def render_report(report: Report, ascii_min_run: int = 8) -> str:
     out = []
     silent_count = sum(1 for tr in report.trigger_reports for o in tr.occurrences if o.silent)
+    baseline_only_count = sum(
+        1 for tr in report.trigger_reports for o in tr.occurrences if o.baseline_only
+    )
     trigger_count = sum(len(tr.occurrences) for tr in report.trigger_reports)
     out.append(
         f"SUMMARY: {trigger_count} triggers, {silent_count} silent, "
-        f"{len(report.orphan_groups)} orphan-RX distinct groups"
+        f"{baseline_only_count} baseline-only, {len(report.orphan_groups)} orphan-RX distinct groups"
     )
     out.append("")
+
+    if report.keepalive_baseline_counts:
+        out.append(
+            "AUTO-KEEPALIVE BASELINE (payload(s) auto-classified as ambient noise because they "
+            f"repeated >= {_KEEPALIVE_MIN_COUNT} times; override with keepalive_payloads: if wrong):"
+        )
+        for payload, count in sorted(
+            report.keepalive_baseline_counts.items(), key=lambda kv: (-kv[1], kv[0])
+        ):
+            out.append(f"  AUTO-KEEPALIVE BASELINE (n={count}): {bytes_to_hex(payload)}")
+        out.append("")
 
     if report.orphan_groups:
         span = report.orphan_span
@@ -970,11 +1050,23 @@ def render_report(report: Report, ascii_min_run: int = 8) -> str:
     for tr in report.trigger_reports:
         for orep in tr.occurrences:
             occ = orep.occurrence
-            marker = " (no response)" if orep.silent else ""
+            if orep.silent:
+                marker = " (no response)"
+            elif orep.baseline_only:
+                marker = " (baseline-only response)"
+            else:
+                marker = ""
             out.append(
                 f"[{occ.line.ts:.3f}] TRIGGER \"{tr.label}\" (origin: {occ.line.direction})"
                 f"{marker}  raw={occ.line.raw_hex}"
             )
+            if orep.early_close_label is not None:
+                out.append(
+                    f"  window closed early at line {orep.early_close_line_no} "
+                    f'(trigger "{orep.early_close_label}") -- this occurrence may look silent/'
+                    "thin only because an unrelated trigger cut its window short, not because "
+                    "nothing responded"
+                )
             for label, val in orep.ambient.items():
                 out.append(f"  ambient: {label}={_fmt_tracker_value(val)}")
             for g in orep.groups:
