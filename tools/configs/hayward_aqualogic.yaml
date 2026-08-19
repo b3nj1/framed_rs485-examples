@@ -89,6 +89,15 @@ triggers:
     payload_prefix: "00 83 01 01"
   - label: "Lights"
     payload_prefix: "00 83 01 00 01"
+  - label: "Aux1"
+    # LED-mask bit 0x80 -- notes/AQ-CO-SERIAL.md's LEDs1 bit7. This system's own Aux1 output
+    # happens to be labeled "Blower" in its display text/adhesive label; that's this
+    # installation's config, not a protocol constant, so the committed name is the generic slot.
+    payload_prefix: "00 83 01 00 02"
+  - label: "Aux2"
+    # LED-mask bit 0x100 -- notes/AQ-CO-SERIAL.md's LEDs2 bit0. Same caveat as Aux1: this
+    # system's Aux2 is labeled "Pool Filter" in its own display text.
+    payload_prefix: "00 83 01 00 04"
   - label: "Heater1"
     # A second, deeper AUX subcode field: buttons in this family share "00 83 01 00 00" (so the
     # 2-byte "wireless (other/AUX, undecoded)" wildcard below collapsed them all into one [0000]
@@ -98,18 +107,70 @@ triggers:
     # fixed-text signature, unlike the LED-mask side of this same button which only moves on
     # some presses.
     payload_prefix: "00 83 01 00 00 04"
+  - label: "Valve3"
+    # Same deeper-subcode family as Heater1 above. LED-mask bit 0x2 -- notes/AQ-CO-SERIAL.md's
+    # LEDs1 bit1, confirmed against the same bit surfaced by the wired-local main-panel capture
+    # for its own Valve3 key. Fixed system name, not a user-relabelable Aux slot.
+    payload_prefix: "00 83 01 00 00 01"
+  - label: "Valve4/Heater2"
+    # LED-mask bit 0x4000 -- notes/AQ-CO-SERIAL.md's LEDs2 bit6, confirmed against the same bit
+    # surfaced by the wired-local main-panel capture for its own Valve4 key.
+    payload_prefix: "00 83 01 00 00 02"
+
+  # Wired-local (OEM main panel keypad) buttons. Separate frame family from the wireless remote
+  # ("00 02 <subcode>", not "00 83 01 <cmd>") -- the 2-byte subcode is its own one-hot 16-bit
+  # bitmask, unrelated in value-space to the wireless <cmd> byte. Confirmed via a real capture,
+  # see notes/button-confirmation-signatures.md's "Wired-local" section for full evidence.
+  - label: "Lights (wired-local)"
+    payload_prefix: "00 02 00 01"
+  - label: "Aux1 (wired-local)"
+    # This system's own Aux1 output is labeled "Blower" in its display text/adhesive label --
+    # that's this installation's config, not a protocol constant, so the committed name is the
+    # generic slot (see the wireless Aux1 trigger above for the same caveat).
+    payload_prefix: "00 02 00 02"
+  - label: "Aux2 (wired-local)"
+    # Same caveat: this system's Aux2 is labeled "Pool Filter" in its own display text.
+    payload_prefix: "00 02 00 04"
+  - label: "Menu (wired-local)"
+    payload_prefix: "00 02 02 00"
+  - label: "Minus (wired-local)"
+    payload_prefix: "00 02 10 00"
+  - label: "Plus (wired-local)"
+    payload_prefix: "00 02 20 00"
+  - label: "Pool/Spa Mode (wired-local)"
+    payload_prefix: "00 02 40 00"
+  - label: "Filter (wired-local)"
+    payload_prefix: "00 02 80 00"
+  - label: "System Off / Service (wired-local)"
+    payload_prefix: "00 02 08 00"
+  - label: "wired-local Left (tentative)"
+    # Direction inferred from opposite settings-menu scroll order vs "wired-local Right" below,
+    # not confirmed against a physical key label -- see notes/button-confirmation-signatures.md.
+    payload_prefix: "00 02 01 00"
+  - label: "wired-local Right (tentative)"
+    payload_prefix: "00 02 04 00"
+  - label: "wired-local (main panel), AUX/valve/heater (subcode)"
+    # "00 02 00 00" alone is a bucketing artifact, same shape as the wireless AUX-B split above --
+    # the real per-button code is one field deeper (payload offset 4). Named below.
+    payload_prefix: "00 02 00 00"
+    discover_bytes: 2
+  - label: "Valve3 (wired-local)"
+    payload_prefix: "00 02 00 00 01 00"
+  - label: "Valve4/Heater2 (wired-local)"
+    payload_prefix: "00 02 00 00 02 00"
+  - label: "Heater1 (wired-local)"
+    payload_prefix: "00 02 00 00 04 00"
 
   # Catch-alls for anything not yet named above. Longest-payload_prefix precedence (see
   # tools/README.md's "Trigger precedence" section) keeps a real press of one of the named
   # buttons above from also being double-reported here.
   - label: "wireless AUX-B (subcode)"
-    # Same "00 83 01 00 00" family as Heater1 above, one byte deeper than the general wildcard's
-    # discover_bytes:2 can see -- without this, payload[5]=0x00 (an idle/heartbeat report with no
-    # button involved), 0x01, and 0x02 (two more distinct, still-unnamed real buttons) all
-    # aliased into a single "[0000]" bucket that looked ~68% ambiguous. Split by payload[5]
-    # instead, each sub-bucket is a clean single-signal: 0x00 shows no LED delta on any
-    # occurrence (genuine heartbeat), 0x01 and 0x02 each toggle exactly one LED bit 100% of the
-    # time (0x2 and 0x4000 respectively, in a real capture).
+    # Same "00 83 01 00 00" family as Heater1/Valve3/Valve4 above, one byte deeper than the
+    # general wildcard's discover_bytes:2 can see -- without this, payload[5]=0x00 (an
+    # idle/heartbeat report with no button involved) aliased into the same "[0000]" bucket as
+    # Heater1/Valve3/Valve4, which looked ~68% ambiguous before those three were split out and
+    # named above. Only 0x00 is left unclaimed here now: 0/N LED delta on every occurrence,
+    # genuine heartbeat, not a button.
     payload_prefix: "00 83 01 00 00"
     discover_bytes: 1
   - label: "wireless (other/AUX, undecoded)"
