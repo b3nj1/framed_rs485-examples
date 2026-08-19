@@ -27,6 +27,20 @@ trackers:
     width: 4
     endian: "little"
 
+  # Same 8-byte LED body's second 4 bytes: a blinking-LED mask (same bit layout as the solid
+  # mask above), e.g. bit 5 blinking = pump running at low speed. Same two carriers, same
+  # +4-byte offset from each solid-mask tracker above.
+  - label: "LED Blink Mask (01 02)"
+    match_prefix: "01 02"
+    offset: 6
+    width: 4
+    endian: "little"
+  - label: "LED Blink Mask (04 0a)"
+    match_prefix: "04 0a 83 00 02"
+    offset: 9
+    width: 4
+    endian: "little"
+
   # Three per-bit/per-character flag trackers (kind: flag_scan / paired_flag_and), covering both
   # frame shapes each field appears in -- see tools/README.md's "Per-bit/per-character flags"
   # section for the region/kind mechanics.
