@@ -21,10 +21,6 @@ All notable changes to the published configuration interface are documented here
   `payload[]` convention used by `on_frame:` lambdas in this repo. See the
   [hub component page](https://esphome.io/components/rs485_frame/) for the corrected log examples.
 
-- **Every `example-device*.yaml`'s pinned `ref:` and `external_components: source:` bumped to
-  `v4.3.0`**, per `CONTRIBUTING.md` §8a guardrails 5 and 7 (both now unconditional — bump every
-  release regardless of which family's package files changed).
-
 ## [4.2.0] - 2026-08-18
 
 ### Changed
