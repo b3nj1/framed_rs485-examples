@@ -55,6 +55,8 @@ def test_hayward_aqualogic_config_loads():
     assert [t.label for t in config.trackers] == [
         "LED Mask (01 02)",
         "LED Mask (04 0a)",
+        "LED Blink Mask (01 02)",
+        "LED Blink Mask (04 0a)",
         "Display Text Flag",
         "LED Mask Flag",
         "Local Setting Index Flag",
