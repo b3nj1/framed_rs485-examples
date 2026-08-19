@@ -253,7 +253,7 @@ Community references often strip the frame_type before counting, so their "byte 
 | **`rs485_frame`** (this component) | first byte of the frame_type | `payload[0]` |
 | [swilson/aqualogic](https://github.com/swilson/aqualogic) | first byte after the frame_type | `payload[2]` (2-byte frame_type) |
 | [earlephilhower/aquaweb](https://github.com/earlephilhower/aquaweb) | mixed; see the Python source | translate per-field |
-| Raw bus capture (dump_frames log) | `DLE` itself | DLE+STX stripped before `payload[0]` |
+| Raw bus capture, or `dump_frames` log (full wire frame — framing and CRC included) | `DLE` itself | `payload[0]` is the log's 3rd byte (`DLE`+`STX` stripped) |
 
 When you publish findings, state the convention explicitly ("offsets are payload-relative:
 `payload[0..1]` = frame_type, data starts at `payload[2]`").
