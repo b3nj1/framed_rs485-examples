@@ -40,6 +40,9 @@ def test_repeated_identical_payload_folds_to_one_row_with_count(tmp_path):
     assert len(occ.groups) == 1
     assert occ.groups[0].payload == bytes.fromhex(KEEPALIVE_HEX)
     assert occ.groups[0].count == 8
-    # keepalive is the sole/most-frequent RX payload -> auto-classified as baseline -> silent,
-    # even though the raw fold above still shows it as a (folded) group.
-    assert occ.silent
+    # keepalive is the sole/most-frequent RX payload -> auto-classified as baseline -> the
+    # occurrence is baseline-only, not silent (rs485_frame-206.3.9: a real, constant response must
+    # never be reported as "no response" purely because it recurred often enough to be classified
+    # as ambient noise).
+    assert not occ.silent
+    assert occ.baseline_only
