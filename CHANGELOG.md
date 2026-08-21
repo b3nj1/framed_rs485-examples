@@ -9,6 +9,19 @@ All notable changes to the published configuration interface are documented here
 - **MINOR** — additive: a new package file, a new optional substitution *with a default*, a new entity.
 - **PATCH** — decoder or bug fix with no interface change.
 
+## [4.5.0] - 2026-08-20
+
+### Added
+
+- **`hayward/aqualogic/response_monitor.yaml`: package-as-template for the response-monitor
+  feature.** Include once per button you want to confirm via a live LED-mask response, with
+  `monitor_name`/`button_name`/`bit`/`window`/`disabled_by_default` vars — the same
+  `path:` + `vars:` shape as `button.yaml`/`led.yaml`. Its signature is written as `bit: N`
+  (the LED-mask bit position, matching `led.yaml`'s own `bit:` var for the same LED) rather
+  than a hand-computed `mask:` hex value. `example-device.yaml`'s previous ~40-line commented
+  inline example (`response_fields:` + `response_monitor:` + three sensors, watching the
+  Lights button) is now a 2-line commented include of this package.
+
 ## [4.4.0] - 2026-08-19
 
 ### Added

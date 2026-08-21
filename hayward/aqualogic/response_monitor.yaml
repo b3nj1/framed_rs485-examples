@@ -1,0 +1,68 @@
+# =============================================================================
+# Hayward AquaLogic / ProLogic — per-button response-monitor package
+# -----------------------------------------------------------------------------
+# Role: package as template
+#
+# Confirms a button press actually took effect by watching for the expected LED-mask
+# change (advanced, most users won't need this). Include once per button you want to
+# confirm. Exposes three sensors: <button_name> Confirm Success/Fail/Timeout.
+#
+# Required vars:
+#   monitor_name  Short, id-safe name for this monitor entry (e.g. "lights") -- no
+#                 spaces. Used for response_monitor's name: and the sensors' monitor_id:.
+#   button_name   The button's own name: (must match a button.yaml include's button_name
+#                 exactly) -- used as trigger.button_name: and in the sensor names.
+#   bit           LED-mask bit toggled by this button (see led.yaml's known bit
+#                 assignments) -- the same bit position as that button's own LED, if it
+#                 has one.
+#
+# Optional vars:
+#   window                Response window (default: 200ms).
+#   disabled_by_default   Whether to hide the confirm sensors in HA by default
+#                          (default: "true" -- these are advanced diagnostics).
+# =============================================================================
+
+defaults:
+  monitor_name: "example"
+  button_name: "Pool Button"
+  bit: 0
+  window: 200ms
+  disabled_by_default: "true"
+
+rs485_frame:
+  - id: !extend pool
+    response_fields:
+      led_mask_01_02:
+        frame_type: [0x01, 0x02]
+        offset: 2
+        length: 4
+        endian: little
+    response_monitor:
+      - name: "${monitor_name}_confirm"
+        trigger:
+          button_name: "${button_name}"
+        window: ${window}
+        signature:
+          - field: led_mask_01_02
+            type: changed
+            bit: ${bit}
+
+sensor:
+  - platform: rs485_frame
+    rs485_frame_id: pool
+    name: "${button_name} Confirm Success"
+    decode: response_success
+    monitor_id: "${monitor_name}_confirm"
+    disabled_by_default: ${disabled_by_default}
+  - platform: rs485_frame
+    rs485_frame_id: pool
+    name: "${button_name} Confirm Fail"
+    decode: response_fail
+    monitor_id: "${monitor_name}_confirm"
+    disabled_by_default: ${disabled_by_default}
+  - platform: rs485_frame
+    rs485_frame_id: pool
+    name: "${button_name} Confirm Timeout"
+    decode: response_timeout
+    monitor_id: "${monitor_name}_confirm"
+    disabled_by_default: ${disabled_by_default}
