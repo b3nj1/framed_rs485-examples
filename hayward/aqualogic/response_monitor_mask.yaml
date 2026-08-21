@@ -1,0 +1,82 @@
+# =============================================================================
+# Hayward AquaLogic / ProLogic — per-button response-monitor package (multi-bit)
+# -----------------------------------------------------------------------------
+# Role: package as template
+#
+# Same purpose as response_monitor.yaml (confirms a button press by watching for the
+# expected LED-mask change; advanced, most users won't need this) but for a button whose
+# press toggles more than one LED-mask bit at once (e.g. a mode button that moves between
+# more than two one-hot states) -- response_monitor.yaml's bit: var only expresses a
+# single bit position, so it can't cover that case; this file takes a mask: var instead.
+# For a single-bit button, use response_monitor.yaml, not this file.
+#
+# Note this file's mask: is passed straight to the component's own signature.mask: --
+# ESPHome package vars: can only fill in the *value* of a key already written into a
+# template file, never choose which key appears, so a single template file can't offer
+# both bit: and mask: forms and pick between them at include time (confirmed against
+# esphome/components/substitutions -- its ${...} expansion runs per already-parsed YAML
+# scalar value, not as a text preprocessing pass over the whole file, so there's no way to
+# make the choice of key itself conditional on a var). Hence two sibling files instead of
+# one that adapts.
+#
+# REQUIRES response_monitor_fields.yaml included exactly once, before any number of this
+# file's own includes -- same requirement, and the same shared-fields file, as
+# response_monitor.yaml (see that file's or response_monitor_fields.yaml's own header for
+# why a second copy would corrupt rather than just duplicate).
+#
+# Required vars:
+#   monitor_name  Short, id-safe name for this monitor entry (e.g. "pool_spa_mode") -- no
+#                 spaces. Used for response_monitor's name: and the sensors' monitor_id:.
+#   button_name   The button's own name: (must match a button.yaml include's button_name
+#                 exactly) -- used as trigger.button_name: and in the sensor names.
+#   mask          LED-mask bits toggled by this button, as a hex literal (e.g. 0x18) --
+#                 the OR of every bit position that can flip across this button's presses,
+#                 not just the pair that happens to flip on any one press (see
+#                 example-device.yaml's Pool/Spa/Spillover entry for a worked case: three
+#                 one-hot states, only two of the three bits flip on a given press, but the
+#                 mask covers all three so a press is detected regardless of which pair).
+#
+# Optional vars:
+#   window                Response window (default: 200ms).
+#   disabled_by_default   Whether to hide the confirm sensors in HA by default
+#                          (default: "true" -- these are advanced diagnostics).
+# =============================================================================
+
+defaults:
+  monitor_name: "example"
+  button_name: "Pool Button"
+  mask: 0x1
+  window: 200ms
+  disabled_by_default: "true"
+
+rs485_frame:
+  - id: !extend pool
+    response_monitor:
+      - name: "${monitor_name}_confirm"
+        trigger:
+          button_name: "${button_name}"
+        window: ${window}
+        signature:
+          - field: led_mask_01_02
+            type: changed
+            mask: ${mask}
+
+sensor:
+  - platform: rs485_frame
+    rs485_frame_id: pool
+    name: "${button_name} Confirm Success"
+    decode: response_success
+    monitor_id: "${monitor_name}_confirm"
+    disabled_by_default: ${disabled_by_default}
+  - platform: rs485_frame
+    rs485_frame_id: pool
+    name: "${button_name} Confirm Fail"
+    decode: response_fail
+    monitor_id: "${monitor_name}_confirm"
+    disabled_by_default: ${disabled_by_default}
+  - platform: rs485_frame
+    rs485_frame_id: pool
+    name: "${button_name} Confirm Timeout"
+    decode: response_timeout
+    monitor_id: "${monitor_name}_confirm"
+    disabled_by_default: ${disabled_by_default}
