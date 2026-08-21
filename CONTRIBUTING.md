@@ -141,10 +141,14 @@ one place and contributors cannot accidentally split it.
    override). A list-valued knob like a command preamble **must not be defaulted in a package file**;
    reference it whole-value (`preamble: ${cmd_preamble}`) and require the device config to supply it
    as an unquoted YAML list: `cmd_preamble: [0x00, 0x83, 0x01]`.
-2. **`${var}` cannot appear inside a YAML flow sequence/mapping.** `preamble: [${cmd_preamble}]` and
-   `esphome: { name: ${name} }` fail to parse (the `{` in `${...}` confuses the flow parser). Use
-   block style (`esphome:` then `  name: ${name}`) or whole-value substitution (`preamble:
-   ${cmd_preamble}` with `cmd_preamble` declared as a real YAML list).
+2. **Unquoted `${var}` cannot appear inside a YAML flow sequence/mapping.** `preamble: [${cmd_preamble}]`
+   and `esphome: { name: ${name} }` fail to parse (the `{` in `${...}` confuses the flow parser). For a
+   list-valued substitution, use block style (`esphome:` then `  name: ${name}`) or whole-value
+   substitution (`preamble: ${cmd_preamble}` with `cmd_preamble` declared as a real YAML list). For a
+   single scalar value inside an otherwise-compact `vars: { }` entry, quoting it side-steps the same
+   parse ambiguity and keeps the one-line form: `vars: { bit: "${bit_aux1}", led_name: "AUX 1" }` parses
+   fine, because YAML strips the quotes before ESPHome's substitution pass ever sees the value — quoted
+   or not, it resolves identically.
 
 **Secrets stay in the device config.** Remote git packages cannot contain `!secret`, so
 `wifi`/`api`/`ota` and their secret lookups live in the device file.

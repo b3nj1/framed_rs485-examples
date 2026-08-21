@@ -7,6 +7,9 @@
 # change (advanced, most users won't need this). Include once per button you want to
 # confirm. Exposes three sensors: <button_name> Confirm Success/Fail/Timeout.
 #
+# For a button that toggles more than one LED-mask bit at once, use
+# response_monitor_mask.yaml instead -- this file's bit: var only expresses a single bit.
+#
 # REQUIRES response_monitor_fields.yaml included exactly once, before any number of this
 # file's own includes (one per button) -- this file only adds a response_monitor: entry +
 # sensors referencing that shared field by name; it declares no response_fields: of its
