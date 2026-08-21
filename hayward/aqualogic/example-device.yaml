@@ -286,3 +286,46 @@ packages:
         vars: { button_name: "Valve 3", button_command: [0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00], disabled_by_default: "true" }
       - path: hayward/aqualogic/button.yaml
         vars: { button_name: "Valve 4", button_command: [0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x02, 0x00], disabled_by_default: "true" }
+
+# -----------------------------------------------------------------------------
+# Response monitor — live trigger -> response confirmation (advanced, most users
+# won't need this). Confirms a button press actually took effect by watching for
+# the expected LED-mask change, and exposes success/fail/timeout counters, an
+# on_confirmed:/on_failed: automation hook, and an opt-in retry consumer. All
+# three pieces below are independent and layer on top of each other — uncomment
+# only as far down as you need.
+# -----------------------------------------------------------------------------
+#
+# --- Core: matching + success/fail/timeout sensors, watching the Lights button. ---
+# trigger: button_name: matches the Lights button by its name: above — no id: needed on
+# that include, so nothing above this block has to change to enable this. Add these two
+# lines to the packages.rs485.files list above (anywhere after the Lights button.yaml
+# include), not here:
+#   - path: hayward/aqualogic/response_monitor.yaml
+#     vars: { monitor_name: "lights", button_name: "Lights", bit: 6 }
+#
+# --- on_confirmed:/on_failed: automation triggers on the entry above. ---
+# Not yet available in a released rs485_frame version — placeholder syntax,
+# subject to change; confirm against the current component docs before use.
+# rs485_frame:
+#   - id: !extend pool
+#     response_monitor:
+#       - name: lights_confirm
+#         on_confirmed:
+#           - logger.log: "Lights button confirmed"
+#         on_failed:
+#           - logger.log: "Lights button did not confirm"
+#
+# --- Optional retry consumer, default-off. ---
+# Not yet available in a released rs485_frame version — placeholder syntax,
+# subject to change; confirm against the current component docs before use.
+# WARNING: absence of confirmation does not prove the original press was lost —
+# a retry can double-actuate (e.g. toggle Lights back off) if the response was
+# simply delayed rather than dropped. Understand that risk before enabling.
+# rs485_frame:
+#   - id: !extend pool
+#     response_monitor:
+#       - name: lights_confirm
+#         retry:
+#           enable: false   # opt-in; leave false unless you accept the double-actuation risk above
+#           max_attempts: 1
