@@ -7,6 +7,14 @@
 # change (advanced, most users won't need this). Include once per button you want to
 # confirm. Exposes three sensors: <button_name> Confirm Success/Fail/Timeout.
 #
+# REQUIRES response_monitor_fields.yaml included exactly once, before any number of this
+# file's own includes (one per button) -- this file only adds a response_monitor: entry +
+# sensors referencing that shared field by name; it declares no response_fields: of its
+# own so including it more than once cannot duplicate anything (see
+# response_monitor_fields.yaml's own header for why that split matters -- it's the same
+# shared-fields package response_monitor_display.yaml's display-text buttons use, one
+# file for both).
+#
 # Required vars:
 #   monitor_name  Short, id-safe name for this monitor entry (e.g. "lights") -- no
 #                 spaces. Used for response_monitor's name: and the sensors' monitor_id:.
@@ -31,12 +39,6 @@ defaults:
 
 rs485_frame:
   - id: !extend pool
-    response_fields:
-      led_mask_01_02:
-        frame_type: [0x01, 0x02]
-        offset: 2
-        length: 4
-        endian: little
     response_monitor:
       - name: "${monitor_name}_confirm"
         trigger:

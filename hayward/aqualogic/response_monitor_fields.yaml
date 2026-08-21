@@ -1,0 +1,61 @@
+# =============================================================================
+# Hayward AquaLogic / ProLogic — shared response_fields: for response-monitor entries
+# (advanced, most users won't need this)
+# -----------------------------------------------------------------------------
+# Role: package (required by response_monitor.yaml and/or response_monitor_display.yaml)
+#
+# Declares every response_fields: entry response_monitor.yaml (LED-mask buttons) and
+# response_monitor_display.yaml (display-text buttons) can reference, addressed the same
+# way regardless of which button/bit is being confirmed:
+#   - led_mask_01_02: the LED-mask frame (Lights, Filter, Pool/Spa Mode, ...).
+#   - display_01_03 / display_04_0a_no_led / display_04_0a_with_led: the on-screen display
+#     text (Menu, Left, Right, Plus, Minus), addressed on whichever of its three carriers
+#     arrives first -- the standalone 01 03 frame, and the 04 0A container both with and
+#     without its optional LED sub-block (see hayward/aqualogic/bus.yaml's own
+#     container-frame comment for the sub-block layout this is built on).
+#
+# One shared file rather than two separate ones (LED-only vs. display-only) because
+# MAX_RESPONSE_FIELDS is a fixed compile-time capacity (response_monitor.h), not sized to
+# how many response_fields: entries a config actually declares -- so declaring all four
+# here costs nothing extra even if you only ever confirm LED-mask buttons or only ever
+# confirm display-text buttons; the unused entries just sit in slots that were already
+# reserved the moment any response_fields:/response_monitor: use enables the feature at all.
+#
+# Kept in a package of its own, separate from response_monitor.yaml and
+# response_monitor_display.yaml, and meant to be included exactly ONCE regardless of how
+# many buttons of either kind you confirm: ESPHome's package merge concatenates
+# list-valued keys across merges rather than overwriting them (`old + new`,
+# esphome/config_helpers.py's merge_config), so declaring any of these response_fields:
+# entries again from a second response_monitor(_display).yaml include would silently
+# duplicate that entry's frame_type/frame_type_mask byte list once per extra include --
+# not a no-op, a corrupt field. Confirmed empirically: response_monitor.yaml included for
+# both Lights and Filter (before this split existed) merged frame_type: [0x01, 0x02] into
+# [0x01, 0x02, 0x01, 0x02], with offset:/length: untouched (scalars overwrite cleanly, only
+# lists concatenate) -- `esphome config` accepted it silently (4 bytes is still under the
+# 16-byte prefix cap), and the resulting field would never again match a real 01 02 frame,
+# so every button's confirmation would quietly stop working with no error at all. Include
+# this file first, then one response_monitor.yaml / response_monitor_display.yaml per
+# button.
+# =============================================================================
+
+rs485_frame:
+  - id: !extend pool
+    response_fields:
+      led_mask_01_02:
+        frame_type: [0x01, 0x02]
+        offset: 2
+        length: 4
+        endian: little
+      display_01_03:
+        frame_type: [0x01, 0x03]
+        offset: 2
+        length: 36
+      display_04_0a_no_led:
+        frame_type: [0x04, 0x0A, 0x83, 0x00, 0x03]
+        offset: 5
+        length: 36
+      display_04_0a_with_led:
+        frame_type: [0x04, 0x0A, 0x83, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03]
+        frame_type_mask: [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF]
+        offset: 14
+        length: 36

@@ -1,0 +1,84 @@
+# =============================================================================
+# Hayward AquaLogic / ProLogic — per-button response-monitor package (display-text buttons)
+# -----------------------------------------------------------------------------
+# Role: package as template
+#
+# Sibling of response_monitor.yaml (advanced, most users won't need this): same three
+# success/fail/timeout sensors and response_monitor: block shape, but for a button whose
+# only observable effect is a change to the on-screen display text -- Menu, Left, Right
+# (100% coverage against a real capture: 33/33, 28/28, 48/48) -- instead of a dedicated
+# LED-mask bit. Watches the display text across all three carriers it can arrive on, via
+# the shared response_fields: declared by response_monitor_fields.yaml, so whichever
+# carrier arrives first still confirms the press.
+#
+# REQUIRES response_monitor_fields.yaml included exactly once, before any number of this
+# file's own includes (one per button) -- this file only adds a response_monitor: entry +
+# sensors referencing that shared field-set by name; it declares no response_fields: of
+# its own so including it more than once cannot duplicate anything (see
+# response_monitor_fields.yaml's own header for why that split matters -- it's the same
+# shared-fields package response_monitor.yaml's LED-mask buttons use, one file for both).
+#
+# Plus/Minus caveat: this template also works mechanically for Plus/Minus (same display
+# fields, same 'changed' signature), but their response only lands here while the display
+# is actively blinking (a menu value is open for editing) -- a Plus/Minus press outside
+# that state produces an unchanged echo, so Fail/Timeout there does not necessarily mean
+# the press was lost. rs485_frame has no gate: primitive that can express "any character
+# in a multi-byte range is currently blinking" (changed_gated's gate: only reads a single
+# fixed-offset, <=4-byte masked value, and the blink flag can land on any of the display's
+# ~36 bytes depending on which value is being edited), so Plus/Minus confirmation here is
+# necessarily best-effort -- treat a Fail/Timeout on Plus/Minus as inconclusive, not as
+# proof the press failed, unless you know a value was being edited at the time.
+#
+# Required vars:
+#   monitor_name  Short, id-safe name for this monitor entry (e.g. "menu") -- no
+#                 spaces. Used for response_monitor's name: and the sensors' monitor_id:.
+#   button_name   The button's own name: (must match a button.yaml include's button_name
+#                 exactly) -- used as trigger.button_name: and in the sensor names.
+#
+# Optional vars:
+#   window                Response window (default: 400ms; observed max ~331ms for Left --
+#                          see the discovery-capture notes referenced from example-device.yaml).
+#   disabled_by_default   Whether to hide the confirm sensors in HA by default
+#                          (default: "true" -- these are advanced diagnostics).
+# =============================================================================
+
+defaults:
+  monitor_name: "example"
+  button_name: "Menu"
+  window: 400ms
+  disabled_by_default: "true"
+
+rs485_frame:
+  - id: !extend pool
+    response_monitor:
+      - name: "${monitor_name}_confirm"
+        trigger:
+          button_name: "${button_name}"
+        window: ${window}
+        signature:
+          - field: display_01_03
+            type: changed
+          - field: display_04_0a_no_led
+            type: changed
+          - field: display_04_0a_with_led
+            type: changed
+
+sensor:
+  - platform: rs485_frame
+    rs485_frame_id: pool
+    name: "${button_name} Confirm Success"
+    decode: response_success
+    monitor_id: "${monitor_name}_confirm"
+    disabled_by_default: ${disabled_by_default}
+  - platform: rs485_frame
+    rs485_frame_id: pool
+    name: "${button_name} Confirm Fail"
+    decode: response_fail
+    monitor_id: "${monitor_name}_confirm"
+    disabled_by_default: ${disabled_by_default}
+  - platform: rs485_frame
+    rs485_frame_id: pool
+    name: "${button_name} Confirm Timeout"
+    decode: response_timeout
+    monitor_id: "${monitor_name}_confirm"
+    disabled_by_default: ${disabled_by_default}

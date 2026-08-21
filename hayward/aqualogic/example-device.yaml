@@ -298,9 +298,16 @@ packages:
 #
 # --- Core: matching + success/fail/timeout sensors, watching the Lights button. ---
 # trigger: button_name: matches the Lights button by its name: above — no id: needed on
-# that include, so nothing above this block has to change to enable this. Add these two
-# lines to the packages.rs485.files list above (anywhere after the Lights button.yaml
-# include), not here:
+# that include, so nothing above this block has to change to enable this. Add these lines
+# to the packages.rs485.files list above (anywhere after the Lights button.yaml include),
+# not here. response_monitor_fields.yaml declares every response_fields: entry this file's
+# LED-mask buttons AND the text-based buttons further below share -- one file for both, so
+# include its path line ONCE total no matter how many buttons of either kind you confirm,
+# even if you enable both this Lights example and the text-based buttons section below
+# (see that file's own header for why a second copy would be actively harmful, not just
+# redundant: ESPHome's package merge concatenates list-valued keys rather than overwriting
+# them, so a repeated response_fields: block silently corrupts it):
+#   - path: hayward/aqualogic/response_monitor_fields.yaml
 #   - path: hayward/aqualogic/response_monitor.yaml
 #     vars: { monitor_name: "lights", button_name: "Lights", bit: 6 }
 #
@@ -329,3 +336,27 @@ packages:
 #         retry:
 #           enable: false   # opt-in; leave false unless you accept the double-actuation risk above
 #           max_attempts: 1
+#
+# --- Text-based buttons (Menu/Plus/Minus/Left/Right): no LED bit, confirmed by a display-
+# text change instead. Watches both the standalone 01 03 frame and the 04 0A container
+# (with and without its optional LED block) so whichever arrives first still confirms the
+# press. See hayward/aqualogic/response_monitor_display.yaml's own header for the Plus/Minus
+# blink-gating caveat -- Menu/Left/Right are unconditionally reliable (100% coverage against
+# a real capture), Plus/Minus confirmation is best-effort. Add the lines you want to
+# packages.rs485.files above (anywhere after the corresponding button.yaml include).
+# response_monitor_fields.yaml declares the shared response_fields: these buttons watch --
+# the same file the Lights example above uses, so if you already added its path line up
+# there, don't add it again here; include it ONCE total regardless of how many buttons of
+# either kind (LED-mask or text-based) you enable (see that file's own header for why a
+# second copy would be actively harmful, not just redundant):
+#   - path: hayward/aqualogic/response_monitor_fields.yaml   # skip if already added above
+#   - path: hayward/aqualogic/response_monitor_display.yaml
+#     vars: { monitor_name: "menu", button_name: "Menu" }
+#   - path: hayward/aqualogic/response_monitor_display.yaml
+#     vars: { monitor_name: "left", button_name: "Left" }
+#   - path: hayward/aqualogic/response_monitor_display.yaml
+#     vars: { monitor_name: "right", button_name: "Right" }
+#   - path: hayward/aqualogic/response_monitor_display.yaml
+#     vars: { monitor_name: "plus", button_name: "Plus" }
+#   - path: hayward/aqualogic/response_monitor_display.yaml
+#     vars: { monitor_name: "minus", button_name: "Minus" }
