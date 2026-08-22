@@ -407,14 +407,28 @@ packages:
       #   vars: { monitor_name: "valve4", button_name: "Valve 4", bit: "${bit_valve4}" }
 
 
-# --- on_confirmed:/on_failed: automation triggers on the entry above. ---
+# --- on_confirmed:/on_failed: automation triggers. ---
+# NOTE: response_monitor: is list-valued, and ESPHome's package/!extend merge
+# concatenates lists rather than matching entries by name: (same reason response_fields:
+# and on_frame: entries must not be declared twice -- see CONTRIBUTING.md). So this can't
+# "patch" the lights_confirm entry response_monitor.yaml already declares above -- it has
+# to be a fully self-contained SECOND entry (own trigger:/window:/signature:, distinct
+# name:) that watches the same button in parallel, purely to run these actions. It
+# creates no sensors of its own -- those still come from the lights_confirm entry above.
 # on_failed: also demonstrates rs485_frame.dump_frame_trace -- requires a
 # frame_trace: block on the hub (see diagnostics.yaml's own placeholder) to log
 # what was actually on the wire around the failed confirmation.
 # rs485_frame:
 #   - id: !extend pool
 #     response_monitor:
-#       - name: lights_confirm
+#       - name: lights_confirm_actions
+#         trigger:
+#           button_name: "Lights"
+#         window: 200ms
+#         signature:
+#           - field: led_mask_01_02
+#             type: changed
+#             bit: "${bit_lights}"
 #         on_confirmed:
 #           - logger.log: "Lights button confirmed"
 #         on_failed:

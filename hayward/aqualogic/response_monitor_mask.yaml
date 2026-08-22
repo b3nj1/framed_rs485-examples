@@ -60,6 +60,9 @@ rs485_frame:
           - field: led_mask_01_02
             type: changed
             mask: ${mask}
+          - field: led_mask_04_0a
+            type: changed
+            mask: ${mask}
 
 sensor:
   - platform: rs485_frame

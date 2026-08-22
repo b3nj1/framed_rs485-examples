@@ -45,6 +45,30 @@ All notable changes to the published configuration interface are documented here
   `vars: { bit: "${bit_aux1}", led_name: "AUX 1" }` — quoting a scalar substitution keeps the
   one-line form without triggering the `${...}`-inside-`{`-confuses-the-flow-parser problem.
 
+### Fixed
+
+- **`response_monitor.yaml`/`response_monitor_mask.yaml`: LED-mask confirmation now also
+  watches the `04 0A` container frame, not just the standalone `01 02` frame.** Added a
+  `led_mask_04_0a` entry to `response_monitor_fields.yaml`
+  (`frame_type: [0x04, 0x0A, 0x83, 0x00, 0x02]`, `offset: 5`, `length: 4`, `endian: little`
+  — the LED sub-block's fixed position when present, matching the worked example already
+  in the component docs) and referenced it as a second `signature:` alternate alongside
+  `led_mask_01_02` in both templates, same `bit`/`mask`. `04 0A` always arrives before the
+  standalone `01 02`/`01 03` frames in the same poll cycle, so LED-mask response monitors
+  were previously confirming later than they could have — same fix already applied to the
+  display-text templates via `display_04_0a_no_led`/`display_04_0a_with_led`.
+- **`example-device.yaml`: fixed the `on_confirmed:`/`on_failed:` example so it actually
+  validates.** It previously tried to attach `on_confirmed:`/`on_failed:` to the already-templated
+  `lights_confirm` entry from `response_monitor.yaml` via a second `!extend pool` /
+  `response_monitor:` block naming only `name:` — but `response_monitor:` is list-valued, and
+  ESPHome's package/`!extend` merge concatenates lists rather than matching entries by `name:` (the
+  same footgun already documented for `response_fields:` and `on_frame:`). The bolt-on block
+  appended an incomplete new list entry instead of patching the existing one, so config validation
+  failed with `'trigger' is a required option for [response_monitor]` as soon as the block was
+  uncommented. The example is now a fully self-contained second `response_monitor:` entry (its own
+  `trigger:`/`window:`/`signature:`, a distinct `name:`) that watches the same button in parallel
+  purely to run the automation actions — it creates no sensors of its own.
+
 ## [4.5.0] - 2026-08-20
 
 ### Added
