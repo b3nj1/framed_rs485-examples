@@ -9,6 +9,42 @@ All notable changes to the published configuration interface are documented here
 - **MINOR** — additive: a new package file, a new optional substitution *with a default*, a new entity.
 - **PATCH** — decoder or bug fix with no interface change.
 
+## [4.6.0] - 2026-08-22
+
+### Added
+
+- **`hayward/aqualogic/response_monitor_mask.yaml`: response-monitor package for buttons that
+  toggle more than one LED-mask bit at once** (e.g. a mode button cycling through more than two
+  one-hot states). Sibling to `response_monitor.yaml`, which only expresses a single `bit:`
+  position; this file takes a `mask:` hex literal instead, covering every bit that can flip
+  across that button's presses. `example-device.yaml`'s commented Pool Spa Mode entry
+  (`mask: 0x8018`, the 3-way Pool/Spa/Spillover cycle) is a worked example.
+- **`hayward/aqualogic/response_monitor_display.yaml`: response-monitor package for buttons with
+  no dedicated LED-mask bit** (Menu, Left, Right, Plus, Minus), whose only observable effect is a
+  change to the on-screen display text. Watches all three carriers that text can arrive on: the
+  standalone `01 03` frame, and the `04 0A` container with and without its optional LED sub-block.
+  Plus/Minus confirmation is documented as best-effort.
+- **`hayward/aqualogic/response_monitor_fields.yaml`: shared `response_fields:` declarations**,
+  split out of `response_monitor.yaml` so both the LED-mask and display-text monitor templates
+  reference the same file. `response_monitor.yaml` and `response_monitor_mask.yaml` now both
+  require this file included exactly once, before any number of their own includes.
+- **`example-device.yaml`: `bit_*` substitutions single-source every LED-mask bit position** (all
+  26), each with its already-established default, referenced as `"${bit_x}"` (quoted) from both
+  the corresponding `led.yaml`/`blink_led.yaml` include and any `response_monitor.yaml` /
+  `response_monitor_mask.yaml` example for the same button. Every include still resolves to the
+  same numeric bit value as before — purely a naming/single-sourcing convenience, not a behavior
+  or identifier change. Commented `response_monitor.yaml` examples now cover every LED-mask
+  button (Filter, Lights, AUX 1-14, Valve 3/4, Service).
+- **`response_monitor:`'s `on_confirmed:`/`on_failed:` automation-trigger example is live** in
+  `example-device.yaml` (previously a placeholder marked "not yet available"), now that the
+  underlying `rs485_frame` component ships the feature. The `on_failed:` example also demonstrates
+  `rs485_frame.dump_frame_trace`, pairing with the new commented `frame_trace:` block in
+  `diagnostics.yaml` to log recent RX/TX frames around a failed confirmation.
+- **`CONTRIBUTING.md`: documents quoting `${var}` inside a compact `vars: { }` mapping** as an
+  escape hatch for the existing flow-sequence/mapping parse restriction, e.g.
+  `vars: { bit: "${bit_aux1}", led_name: "AUX 1" }` — quoting a scalar substitution keeps the
+  one-line form without triggering the `${...}`-inside-`{`-confuses-the-flow-parser problem.
+
 ## [4.5.0] - 2026-08-20
 
 ### Added
@@ -373,6 +409,8 @@ Initial released interface. Restructured the monolithic per-controller YAMLs int
 - `generic/` discovery / sniffer / skeleton remain monolithic bootstrap tools (exempt from the
   package structure) with header notes pointing at it for real integrations.
 
+[4.6.0]: https://github.com/b3nj1/rs485_frame-examples/compare/v4.5.0...v4.6.0
+[4.5.0]: https://github.com/b3nj1/rs485_frame-examples/compare/v4.3.1...v4.5.0
 [4.3.1]: https://github.com/b3nj1/rs485_frame-examples/compare/v4.3.0...v4.3.1
 [4.3.0]: https://github.com/b3nj1/rs485_frame-examples/compare/v4.2.0...v4.3.0
 [4.2.0]: https://github.com/b3nj1/rs485_frame-examples/compare/v4.1.0...v4.2.0
