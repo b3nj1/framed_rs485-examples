@@ -7,7 +7,9 @@
 # Declares every response_fields: entry response_monitor.yaml (LED-mask buttons) and
 # response_monitor_display.yaml (display-text buttons) can reference, addressed the same
 # way regardless of which button/bit is being confirmed:
-#   - led_mask_01_02: the LED-mask frame (Lights, Filter, Pool/Spa Mode, ...).
+#   - led_mask_01_02 / led_mask_04_0a: the LED-mask, on whichever of its two carriers
+#     arrives first -- the standalone 01 02 frame, and the 04 0A container's optional LED
+#     sub-block (Lights, Filter, Pool/Spa Mode, ...).
 #   - display_01_03 / display_04_0a_no_led / display_04_0a_with_led: the on-screen display
 #     text (Menu, Left, Right, Plus, Minus), addressed on whichever of its three carriers
 #     arrives first -- the standalone 01 03 frame, and the 04 0A container both with and
@@ -44,6 +46,18 @@ rs485_frame:
       led_mask_01_02:
         frame_type: [0x01, 0x02]
         offset: 2
+        length: 4
+        endian: little
+      led_mask_04_0a:
+        # 04 0A container: 2-byte frame_type + constant 2-byte header (83 00) + an LED
+        # sub-block (tag 0x02) that, when present, always comes first, right after the
+        # header -- a fixed-offset anchor, not something that needs to be scanned for.
+        # Referenced as a second signature: alt alongside led_mask_01_02 by
+        # response_monitor.yaml/response_monitor_mask.yaml, since 04 0A always arrives
+        # before the standalone 01 02 frame in the same poll cycle (see bus.yaml's own
+        # container-frame comment) -- watching both carriers confirms sooner.
+        frame_type: [0x04, 0x0A, 0x83, 0x00, 0x02]
+        offset: 5
         length: 4
         endian: little
       display_01_03:

@@ -51,6 +51,9 @@ rs485_frame:
           - field: led_mask_01_02
             type: changed
             bit: ${bit}
+          - field: led_mask_04_0a
+            type: changed
+            bit: ${bit}
 
 sensor:
   - platform: rs485_frame
