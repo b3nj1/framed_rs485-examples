@@ -49,7 +49,7 @@ wifi:
 
 # Remove this block once rs485_frame is included in an official ESPHome release.
 external_components:
-  - source: github://b3nj1/esphome@v4.5.0
+  - source: github://b3nj1/esphome@v4.6.0
     components: [rs485_frame]
 
 # flow_control_pin: your adapter's DE/RE pin. Most half-duplex transceivers keep RX
