@@ -408,8 +408,9 @@ packages:
 
 
 # --- on_confirmed:/on_failed: automation triggers on the entry above. ---
-# Not yet available in a released rs485_frame version — placeholder syntax,
-# subject to change; confirm against the current component docs before use.
+# on_failed: also demonstrates rs485_frame.dump_frame_trace -- requires a
+# frame_trace: block on the hub (see diagnostics.yaml's own placeholder) to log
+# what was actually on the wire around the failed confirmation.
 # rs485_frame:
 #   - id: !extend pool
 #     response_monitor:
@@ -418,6 +419,7 @@ packages:
 #           - logger.log: "Lights button confirmed"
 #         on_failed:
 #           - logger.log: "Lights button did not confirm"
+#           - rs485_frame.dump_frame_trace: pool
 #
 # --- Optional retry consumer, default-off. ---
 # Not yet available in a released rs485_frame version — placeholder syntax,
