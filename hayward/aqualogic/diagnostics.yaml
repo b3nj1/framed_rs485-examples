@@ -95,14 +95,12 @@ rs485_frame:
       # ASCII gate so characters render instead of '.'.
       ascii_strip_high_bit: true
 
-# Frame trace: raw RX/TX ring buffer for response_monitor diagnostics.
-# Pairs with response_monitor.yaml's on_failed: (see that file) --
-# dumping the trace on a failed confirmation shows exactly what was on the wire
-# around it, unlike sniffer_stats above (which only ever sees already-validated
-# frames) or dump_frames_enable (which logs everything, not just the frames
-# around one failure).
-rs485_frame:
-  - id: !extend pool
+    # Frame trace: raw RX/TX ring buffer for response_monitor diagnostics.
+    # Pairs with response_monitor.yaml's on_failed: (see that file) --
+    # dumping the trace on a failed confirmation shows exactly what was on the wire
+    # around it, unlike sniffer_stats above (which only ever sees already-validated
+    # frames) or dump_frames_enable (which logs everything, not just the frames
+    # around one failure).
     frame_trace:
       size: ${trace_size}
       capture_bytes: ${trace_capture_bytes}
