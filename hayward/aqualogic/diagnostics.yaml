@@ -37,11 +37,17 @@
 #   dump_frames_enable         Toggle per-frame raw logging (default: "false"; set to
 #                               "true" to log every frame as received, separately from
 #                               the periodic stats_table above).
+#   trace_size                 Frames kept in the frame_trace ring buffer (default: 32).
+#   trace_capture_bytes        Bytes captured per traced frame (default: 24).
+#   trace_include_invalid      Whether the trace also records frames that failed
+#                               validation (default: true).
 #
-# RAM cost while enabled: up to ~36 KB worst case (32 frame types x 24 payloads x
-# 48 bytes at the defaults). Lower stats_max_frame_types / stats_max_unique_payloads /
-# stats_payload_capture_bytes via vars: if that's a meaningful chunk of your board's
-# free heap. Comment this file out again once you're done diagnosing.
+# RAM cost while enabled: up to ~36 KB worst case for sniffer_stats (32 frame types x 24
+# payloads x 48 bytes at the defaults), plus ~768 bytes for the frame_trace ring buffer at
+# its defaults (32 frames x 24 captured bytes). Lower stats_max_frame_types /
+# stats_max_unique_payloads / stats_payload_capture_bytes / trace_size / trace_capture_bytes
+# via vars: if that's a meaningful chunk of your board's free heap. Comment this file out
+# again once you're done diagnosing.
 
 defaults:
   stats_interval: 30s
@@ -50,6 +56,9 @@ defaults:
   stats_payload_capture_bytes: 48
   stats_payload_dump_top: 8
   dump_frames_enable: "false"
+  trace_size: 32
+  trace_capture_bytes: 24
+  trace_include_invalid: true
 
 rs485_frame:
   - id: !extend pool
@@ -86,15 +95,15 @@ rs485_frame:
       # ASCII gate so characters render instead of '.'.
       ascii_strip_high_bit: true
 
-# --- Frame trace: raw RX/TX ring buffer for response_monitor diagnostics. ---
+# Frame trace: raw RX/TX ring buffer for response_monitor diagnostics.
 # Pairs with response_monitor.yaml's on_failed: (see that file) --
 # dumping the trace on a failed confirmation shows exactly what was on the wire
 # around it, unlike sniffer_stats above (which only ever sees already-validated
 # frames) or dump_frames_enable (which logs everything, not just the frames
 # around one failure).
-# rs485_frame:
-#   - id: !extend pool
-#     frame_trace:
-#       size: 32
-#       capture_bytes: 24
-#       include_invalid: true
+rs485_frame:
+  - id: !extend pool
+    frame_trace:
+      size: ${trace_size}
+      capture_bytes: ${trace_capture_bytes}
+      include_invalid: ${trace_include_invalid}
