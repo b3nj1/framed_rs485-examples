@@ -157,16 +157,17 @@ packages:
       # - hayward/aqualogic/heater.yaml          # Gas/heat-pump heater — Status: tested
       # - hayward/aqualogic/diagnostics.yaml     # Diagnostic stats table + frame dump — Status: tested
 
-      # --- LED indicators — rename labels to match your load; remove bits your panel lacks. ---
+      # --- LED indicators: status --- rename labels to match your load; remove bits your panel lacks.
+      # States with no switch-like counterpart, plus Pool Mode / Spa Mode / Spillover: those three
+      # feed the Pool Spa Mode 3-way cycle, which has no switch (on/off) shape and no conversion
+      # path yet -- they'll be reclassified once the native select: platform for that cycle lands.
       # Enabled by default: states present on every AquaLogic panel.
-      # Disabled by default (hidden in HA; enable in Settings > Entities as needed):
-      #   AUX channels, valves, Service, Spillover, Super Chlorinate.
+      # Disabled by default (hidden in HA; enable in Settings > Entities as needed): Spillover,
+      # and the derived Pump Low Speed indicator.
       # Bits 0-8 hardware-verified. Bits 9-25 confirmed by swilson, smith288, ChaseDurand.
       # Use the "LED Mask" diagnostic sensor to verify bit layout on your specific panel.
       - path: hayward/aqualogic/led.yaml
         vars: { bit: "${bit_heater_active}", led_name: "Heater Active", device_class: heat }
-      - path: hayward/aqualogic/led.yaml
-        vars: { bit: "${bit_valve3}", led_name: "Valve 3", device_class: running, disabled_by_default: "true" }
       - path: hayward/aqualogic/led.yaml
         vars: { bit: "${bit_check_system}", led_name: "Check System", device_class: problem }
       - path: hayward/aqualogic/led.yaml
@@ -174,11 +175,22 @@ packages:
       - path: hayward/aqualogic/led.yaml
         vars: { bit: "${bit_spa_mode}", led_name: "Spa Mode", device_class: running }
       - path: hayward/aqualogic/led.yaml
-        vars: { bit: "${bit_filter}", led_name: "Filter", device_class: running }
+        vars: { bit: "${bit_spillover}", led_name: "Spillover", device_class: running, disabled_by_default: "true" }
       # Filter LED blinking (not solid) = pump running at low speed. Disabled by default --
       # only relevant if you have a variable-speed pump; enable in HA Settings > Entities.
       - path: hayward/aqualogic/blink_led.yaml
         vars: { bit: "${bit_filter}", led_name: "Pump Low Speed", device_class: running, disabled_by_default: "true" }
+
+      # --- LED indicators: switch-like [buttons] --- states that also have a switch-eligible
+      # button counterpart below (Lights/Filter/AUX/Valve/Service/System Off toggles, plus Super
+      # Chlorinate). This file exposes them as separate read-only led.yaml indicators +
+      # button.yaml commands; a switches-flavor file would replace this section with switch.yaml
+      # entries instead, so it is not expected to match that file's counterpart section line for
+      # line.
+      # Disabled by default (hidden in HA; enable in Settings > Entities as needed):
+      #   AUX channels, valves, Service, Super Chlorinate.
+      - path: hayward/aqualogic/led.yaml
+        vars: { bit: "${bit_filter}", led_name: "Filter", device_class: running }
       - path: hayward/aqualogic/led.yaml
         vars: { bit: "${bit_lights}", led_name: "Lights", device_class: light }
       - path: hayward/aqualogic/led.yaml
@@ -196,9 +208,9 @@ packages:
       - path: hayward/aqualogic/led.yaml
         vars: { bit: "${bit_aux6}", led_name: "AUX 6", device_class: running, disabled_by_default: "true" }
       - path: hayward/aqualogic/led.yaml
-        vars: { bit: "${bit_valve4}", led_name: "Valve 4", device_class: running, disabled_by_default: "true" }
+        vars: { bit: "${bit_valve3}", led_name: "Valve 3", device_class: running, disabled_by_default: "true" }
       - path: hayward/aqualogic/led.yaml
-        vars: { bit: "${bit_spillover}", led_name: "Spillover", device_class: running, disabled_by_default: "true" }
+        vars: { bit: "${bit_valve4}", led_name: "Valve 4", device_class: running, disabled_by_default: "true" }
       - path: hayward/aqualogic/led.yaml
         vars: { bit: "${bit_system_off}", led_name: "System Off", device_class: problem }
       - path: hayward/aqualogic/led.yaml
@@ -220,7 +232,12 @@ packages:
       - path: hayward/aqualogic/led.yaml
         vars: { bit: "${bit_super_chlorinate}", led_name: "Super Chlorinate", device_class: running, disabled_by_default: "true" }
 
-      # --- Buttons — rename labels to match your load; remove buttons your panel lacks. ---
+      # --- Buttons: status-navigation --- rename labels to match your load; remove buttons your
+      # panel lacks. No persistent on/off state to speculate about, so these stay button: only —
+      # not eligible for switch conversion, and this section is expected to be identical in a
+      # future switches-flavor file. Pool Spa Mode is here rather than under switch-like because
+      # it's a 3-way cycle command (see the matching LED indicators: status note above), not a
+      # toggle -- it has no conversion path until the native select: platform lands.
       # Buttons below use the wireless format (works on most panels, our default).
       # If a menu/display button (Plus, Minus, Menu, Right, Left, Lights, Service)
       # doesn't respond, you likely have older firmware (e.g. v2.85): swap that
@@ -228,10 +245,7 @@ packages:
       # Full history: https://github.com/b3nj1/rs485_frame-examples/issues/3
       # Navigation and mode: active by default on every panel.
       - path: hayward/aqualogic/button.yaml
-        vars: { button_name: "Filter", button_command: [0x80, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00, 0x00] }
-      - path: hayward/aqualogic/button.yaml
         vars: { button_name: "Pool Spa Mode", button_command: [0x40, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x00] }
-
       - path: hayward/aqualogic/button.yaml
         vars: { button_name: "Plus", button_command: [0x20, 0x00, 0x00, 0x00, 0x20, 0x00, 0x00, 0x00] }
       - path: hayward/aqualogic/button.yaml
@@ -242,10 +256,8 @@ packages:
         vars: { button_name: "Right", button_command: [0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00] }
       - path: hayward/aqualogic/button.yaml
         vars: { button_name: "Left", button_command: [0x04, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00] }
-      - path: hayward/aqualogic/button.yaml
-        vars: { button_name: "Lights", button_command: [0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00] }
 
-      # Legacy fw v2.85 uses shorter wired-commands for Plus, Minus, Menu, Right, Left, Lights:
+      # Legacy fw v2.85 uses shorter wired-commands for Plus, Minus, Menu, Right, Left:
       # - path: hayward/aqualogic/secondary_button.yaml
       #   vars: { button_name: "Plus", button_command: [0x20, 0x00, 0x20, 0x00] }
       # - path: hayward/aqualogic/secondary_button.yaml
@@ -256,8 +268,6 @@ packages:
       #   vars: { button_name: "Right", button_command: [0x01, 0x00, 0x01, 0x00] }
       # - path: hayward/aqualogic/secondary_button.yaml
       #   vars: { button_name: "Left", button_command: [0x04, 0x00, 0x04, 0x00] }
-      # - path: hayward/aqualogic/secondary_button.yaml
-      #   vars: { button_name: "Lights", button_command: [0x00, 0x01, 0x00, 0x01] }
 
       # Menu Unlock — Hayward unlocks setup menus by holding Left+Right for several seconds,
       # not a quick press. Two buttons bracket the hold instead of one: "Start" sets the
@@ -267,6 +277,17 @@ packages:
       #   vars: { button_name: "Menu Unlock Start", button_command: [0x05, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00] }
       # - path: hayward/aqualogic/button.yaml
       #   vars: { button_name: "Menu Unlock End", button_command: [0x00, 0x00, 0x00, 0x00, 0x05, 0x00, 0x00, 0x00] }
+
+      # --- Buttons: switch-like [buttons] --- commands with a clean on/off (or cycle) counterpart
+      # that a switches-flavor file would instead expose via switch.yaml/select — see switch.yaml's
+      # own header for the full eligible set. Not expected to match that file's counterpart section.
+      - path: hayward/aqualogic/button.yaml
+        vars: { button_name: "Filter", button_command: [0x80, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00, 0x00] }
+      - path: hayward/aqualogic/button.yaml
+        vars: { button_name: "Lights", button_command: [0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00] }
+      # Legacy fw v2.85 uses shorter wired-commands for Lights:
+      # - path: hayward/aqualogic/secondary_button.yaml
+      #   vars: { button_name: "Lights", button_command: [0x00, 0x01, 0x00, 0x01] }
 
       # Service — wired local frame (0x0002), no postamble. Disabled by default:
       # maintenance use only; most users should not trigger this accidentally.
@@ -319,6 +340,19 @@ packages:
         vars: { button_name: "Valve 3", button_command: [0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00], disabled_by_default: "true" }
       - path: hayward/aqualogic/button.yaml
         vars: { button_name: "Valve 4", button_command: [0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x02, 0x00], disabled_by_default: "true" }
+      # Super Chlorinate: command byte derived from swilson/aqualogic's keys.py
+      # (SUPER_CHLORINATE = 0x04000000), cross-checked against every other confirmed
+      # button_command in this file under the same encoding -- but not itself captured off a
+      # live bus. Same confidence tier as AUX 8-14 above: keep commented until hw-tested.
+      # swilson's source marks this key wireless-only, so it needs the wireless btn_preamble
+      # (like System Off above) rather than the default wired ${cmd_preamble}.
+      # - path: hayward/aqualogic/button.yaml
+      #   vars:
+      #     button_name: "Super Chlorinate"
+      #     button_command: [0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x04]
+      #     btn_preamble: [0x00, 0x83, 0x01]   # wireless — do not change
+      #     btn_postamble: [0x00]
+      #     disabled_by_default: "true"
 
       # -----------------------------------------------------------------------------
       # Response monitor — live trigger -> response confirmation (advanced, most users
