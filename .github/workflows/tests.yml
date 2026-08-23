@@ -2,6 +2,8 @@ name: tests
 
 on:
   push:
+    tags-ignore:
+      - "v*"
   pull_request:
 
 jobs:
@@ -28,7 +30,8 @@ jobs:
           path: rs485_frame-examples
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.12"  # esphome requires >=3.12; the pytest job above doesn't install
+                                   # esphome so it can stay on 3.11
       - name: Checkout matching esphome branch
         run: |
           BRANCH="${{ github.head_ref || github.ref_name }}"
