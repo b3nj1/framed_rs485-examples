@@ -255,3 +255,23 @@ Any defect found in this tool gets a failing test proving the defect before the 
 `tests/test_keepalive_baseline.py` for the pattern (a regression test written against a bug found
 while building out the coverage-accounting tests, kept as the permanent guard against it
 reappearing).
+
+# validate_examples.py
+
+Runs every entry-point `example-device*.yaml` (and the standalone `generic/*.yaml` configs)
+through a real `esphome config` call — placeholders filled with dummy-but-valid values, every
+independent optional equipment package enabled, `packages:`/`external_components:` pointed at a
+local checkout instead of a released tag. Catches YAML/schema bugs in package files (e.g. a
+duplicate top-level key) before they reach a user's build, which nothing else here checks: `pytest`
+above only covers `discovery_capture.py`'s own config format, not these ESPHome device configs.
+
+```
+pip install esphome   # or: pip install -e /path/to/an/esphome/checkout
+python3 tools/validate_examples.py --esphome-path /path/to/esphome/checkout
+```
+
+`--esphome-path` is optional — omit it to validate `external_components:` against whatever
+released tag is currently pinned (a real network fetch) instead of a local checkout. `--examples-ref`
+defaults to this repo's current HEAD commit; pass a released tag to instead validate exactly what a
+user pulling that tag would get. Run automatically in CI (`.github/workflows/tests.yml`) against
+the `b3nj1/esphome` fork's matching branch.

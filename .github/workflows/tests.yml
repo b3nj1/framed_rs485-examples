@@ -14,3 +14,26 @@ jobs:
           python-version: "3.11"
       - run: pip install -r tools/requirements-dev.txt
       - run: pytest
+
+  validate-esphome-config:
+    # Runs every entry-point example-device*.yaml through a real `esphome config`
+    # (schema validation, no compile) so package-file bugs -- bad YAML structure, schema
+    # violations, typos in package paths -- surface here instead of in a user's build.
+    # Checks out the b3nj1/esphome fork's matching branch (falling back to its primary
+    # branch) so this validates the component change actually being made, not last release.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: rs485_frame-examples
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Checkout matching esphome branch
+        run: |
+          BRANCH="${{ github.head_ref || github.ref_name }}"
+          git clone --depth 1 --branch "$BRANCH" https://github.com/b3nj1/esphome.git esphome \
+            || git clone --depth 1 --branch rs485_frame https://github.com/b3nj1/esphome.git esphome
+      - run: pip install -e ./esphome
+      - run: python3 tools/validate_examples.py --esphome-path "$GITHUB_WORKSPACE/esphome"
+        working-directory: rs485_frame-examples
