@@ -45,14 +45,28 @@
 # itself. That press would reach `queue_command_values()` before the hub's
 # `setup()` has sized its TX queue, and would also send a real toggle command
 # to the panel on every boot regardless. `DISABLED` skips both.
+#
+# Optional var:
+#   heater_command  Toggle-heater-mode command value, as an unquoted YAML list of
+#                    raw bytes. Defaults to the value below, confirmed on this
+#                    repo's own hardware. Override if your panel needs a
+#                    different command by including this file with
+#                    `vars: { heater_command: [...] }` instead of a plain path.
+#
+# defaults: (not substitutions:) is deliberate -- see bus.yaml's note on why a
+# list-valued substitutions: default in a package would concatenate with, not
+# override, a device config's own value for the same key.
 # =============================================================================
+
+defaults:
+  heater_command: [0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x04, 0x00]  # toggles heater mode (Manual Off / Auto); 0x00000400 word x2, byte-expanded
 
 button:
   - platform: rs485_frame
     id: heater_switch_btn
     rs485_frame_id: pool
     internal: true
-    value: [0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x04, 0x00]  # toggles heater mode (Manual Off / Auto); 0x00000400 word x2, byte-expanded
+    value: ${heater_command}
 
 switch:
   - platform: template

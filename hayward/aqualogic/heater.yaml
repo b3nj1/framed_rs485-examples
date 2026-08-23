@@ -18,6 +18,19 @@
 # [0x01,0x02] (reads only the heater LED, bit 0) and [0x01,0x03]/[0x04,0x0A]
 # (the heater-mode latch), coexisting with the panel/lights/aux handlers on the
 # same frame types. Adds to the shared `pool` hub via `id: !extend pool`.
+#
+# Optional var:
+#   heater_command  Toggle-heater-mode command value, as an unquoted YAML list of
+#                    raw bytes. Defaults to the value below, confirmed on this
+#                    repo's own hardware. Override if your panel needs a
+#                    different command by including this file with
+#                    `vars: { heater_command: [...] }` instead of a plain path.
+#
+# defaults: (not substitutions:) is deliberate -- see bus.yaml's note on why a
+# list-valued substitutions: default in a package would concatenate with, not
+# override, a device config's own value for the same key.
+defaults:
+  heater_command: [0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x04, 0x00]  # toggles heater mode (Manual Off / Auto); 0x00000400 word x2, byte-expanded
 
 globals:
   # Timestamp (millis) of the last heater-mode proof seen on the display.
@@ -91,7 +104,7 @@ button:
   - platform: rs485_frame
     rs485_frame_id: pool
     name: "Heater"
-    value: [0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x04, 0x00]  # toggles heater mode (Manual Off / Auto); 0x00000400 word x2, byte-expanded
+    value: ${heater_command}
 
 binary_sensor:
   - platform: template
