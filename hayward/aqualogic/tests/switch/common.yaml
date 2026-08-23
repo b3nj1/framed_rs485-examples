@@ -1,0 +1,46 @@
+# Standalone config-validation harness for switch.yaml / switch_secondary.yaml.
+# Not a user-facing example -- see this directory's own README.md. Exercises
+# three cases: a plain LED-mask-bit toggle (Lights), the text_enum fallback
+# for an output whose LED bit isn't a reliable state proof (Heater1, bit
+# disabled and text_on/text_off used instead), and the secondary/wired-local
+# wire format (Service).
+substitutions:
+  name: rs485-frame-switch-test
+  cmd_preamble: [0x00, 0x83, 0x01]
+  cmd_postamble: [0x00]
+  cmd_element_bytes: "1"
+  cmd_endian: "big"
+  secondary_cmd_preamble: [0x00, 0x02]
+  secondary_cmd_postamble: []
+  secondary_cmd_element_bytes: "1"
+
+esphome:
+  name: ${name}
+
+logger:
+
+packages:
+  bus: !include ../../bus.yaml
+  switch_lights: !include
+    file: ../../switch.yaml
+    vars:
+      switch_name: "Lights"
+      switch_id: "lights"
+      bit: "6"
+      switch_command: [0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00]
+  switch_heater1: !include
+    file: ../../switch.yaml
+    vars:
+      switch_name: "Heater1"
+      switch_id: "heater1"
+      switch_command: [0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x04, 0x00]
+      text_on: "Auto"
+      text_off: "Manual Off"
+  switch_service: !include
+    file: ../../switch_secondary.yaml
+    vars:
+      switch_name: "Service"
+      switch_id: "service"
+      bit: "9"
+      switch_command: [0x08, 0x00, 0x08, 0x00]
+      disabled_by_default: "true"
