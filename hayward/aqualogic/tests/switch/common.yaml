@@ -1,9 +1,9 @@
-# Standalone config-validation harness for switch.yaml / switch_secondary.yaml.
-# Not a user-facing example -- see this directory's own README.md. Exercises
-# three cases: a plain LED-mask-bit toggle (Lights), the text_enum fallback
-# for an output whose LED bit isn't a reliable state proof (Heater1, bit
-# disabled and text_on/text_off used instead), and the secondary/wired-local
-# wire format (Service).
+# Standalone config-validation harness for switch.yaml / switch_secondary.yaml, plus the
+# fused Heater Mode switch in heater.yaml. Not a user-facing example -- see this
+# directory's own README.md. Exercises the bit-based case (Lights, via switch.yaml), the
+# secondary/wired-local wire format (Service, via switch_secondary.yaml), and heater.yaml's
+# own fused switch (Heater Mode, which reads heater_auto's already-latched state rather
+# than a bit).
 substitutions:
   name: rs485-frame-switch-test
   cmd_preamble: [0x00, 0x83, 0x01]
@@ -21,26 +21,17 @@ logger:
 
 packages:
   bus: !include ../../bus.yaml
+  heater: !include ../../heater.yaml
   switch_lights: !include
     file: ../../switch.yaml
     vars:
       switch_name: "Lights"
-      switch_id: "lights"
       bit: "6"
       switch_command: [0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00]
-  switch_heater1: !include
-    file: ../../switch.yaml
-    vars:
-      switch_name: "Heater1"
-      switch_id: "heater1"
-      switch_command: [0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x04, 0x00]
-      text_on: "Auto"
-      text_off: "Manual Off"
   switch_service: !include
     file: ../../switch_secondary.yaml
     vars:
       switch_name: "Service"
-      switch_id: "service"
       bit: "9"
       switch_command: [0x08, 0x00, 0x08, 0x00]
       disabled_by_default: "true"

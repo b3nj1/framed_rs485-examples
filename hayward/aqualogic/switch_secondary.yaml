@@ -6,16 +6,12 @@
 # Mirrors switch.yaml but defaults to `${secondary_cmd_*}` substitutions instead
 # of `${cmd_*}` — the wired-local preamble `[0x00, 0x02]`, typically needed for
 # Service on legacy-firmware panels (main board v2.85 and similar). See
-# switch.yaml's header for the full var reference; only the btn_* defaults
-# differ here.
+# switch.yaml's header for the full var reference and the `restore_mode:
+# DISABLED` rationale; only the btn_* defaults differ here.
 # =============================================================================
 
 defaults:
   switch_name: "Switch (Secondary)"
-  switch_id: "switch_secondary"
-  bit: -1
-  text_on: ""
-  text_off: ""
   device_class: ""
   disabled_by_default: "false"
   btn_preamble: ${secondary_cmd_preamble}
@@ -25,7 +21,7 @@ defaults:
 
 button:
   - platform: rs485_frame
-    id: switch_${switch_id}_btn
+    id: switch_bit_${bit}_btn
     rs485_frame_id: pool
     internal: true
     value: ${switch_command}
@@ -37,20 +33,15 @@ button:
 
 switch:
   - platform: template
-    id: switch_${switch_id}
+    id: switch_bit_${bit}
     name: "${switch_name}"
     device_class: ${device_class}
     disabled_by_default: ${disabled_by_default}
     optimistic: true
+    restore_mode: DISABLED
     turn_on_action:
-      - button.press: switch_${switch_id}_btn
+      - button.press: switch_bit_${bit}_btn
     turn_off_action:
-      - button.press: switch_${switch_id}_btn
+      - button.press: switch_bit_${bit}_btn
     lambda: |-
-      if (${bit} >= 0) {
-        return bool(id(g_led_mask) & (1UL << ${bit}));
-      }
-      const std::string &txt = id(display_text).state;
-      if (txt.find("${text_on}") != std::string::npos) return true;
-      if (txt.find("${text_off}") != std::string::npos) return false;
-      return {};
+      return bool(id(g_led_mask) & (1UL << ${bit}));
