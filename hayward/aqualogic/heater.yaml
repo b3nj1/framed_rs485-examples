@@ -89,35 +89,9 @@ rs485_frame:
 
 button:
   - platform: rs485_frame
-    id: heater_toggle_btn
     rs485_frame_id: pool
     name: "Heater"
     value: [0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x04, 0x00]  # toggles heater mode (Manual Off / Auto); 0x00000400 word x2, byte-expanded
-
-# Fused Auto/Manual Off switch, alongside the "Heater" button and "Heater Auto Mode"
-# binary_sensor above (both unchanged, for existing users). optimistic: true publishes
-# the assumed state immediately on toggle; turn_on/turn_off both press the same "Heater"
-# button (the panel has one toggle command, not separate on/off commands) via its id
-# above, so the TX path is identical to a real button press. The state lambda simply
-# reads heater_auto's already-decoded/latched value below, rather than re-parsing the
-# display text a second time. restore_mode: DISABLED is required, not cosmetic: the
-# template switch platform's default (ALWAYS_OFF) would call turn_off() -- pressing the
-# button -- from inside its own setup(), which runs at a higher setup_priority than the
-# rs485_frame hub itself, reaching queue_command_values() before the hub's setup() has
-# sized its TX queue, and sending a real toggle command to the panel on every boot
-# regardless. DISABLED skips both.
-switch:
-  - platform: template
-    id: heater_auto_switch
-    name: "Heater Mode"
-    optimistic: true
-    restore_mode: DISABLED
-    turn_on_action:
-      - button.press: heater_toggle_btn
-    turn_off_action:
-      - button.press: heater_toggle_btn
-    lambda: |-
-      return id(heater_auto).state;
 
 binary_sensor:
   - platform: template

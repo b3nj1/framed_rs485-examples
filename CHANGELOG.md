@@ -61,14 +61,21 @@ All notable changes to the published configuration interface are documented here
   and would also send a real toggle command to the panel on every boot regardless (a second,
   independent bug). `switch_secondary.yaml` is the wired-local/legacy-firmware counterpart
   (Service), mirroring `secondary_button.yaml`'s `${secondary_cmd_*}` defaults.
-- **`hayward/aqualogic/heater.yaml`: fused "Heater Mode" switch**, alongside the existing
-  "Heater" button and "Heater Auto Mode" binary_sensor (both unchanged). Its LED bit reflects
-  active heating, not Auto/Manual Off mode, so — unlike `switch.yaml`'s generic bit-based
-  cases — its state `lambda:` simply reads the existing `heater_auto` binary_sensor's
-  already-decoded/latched display-text value rather than re-parsing the display a second time.
-  Same `optimistic: true` / `restore_mode: DISABLED` / internal-button-press mechanism as
-  `switch.yaml`. Standalone config-validation harness at `hayward/aqualogic/tests/switch/`
-  covers all three (not wired into `example-device.yaml` yet — planned follow-up).
+- **`hayward/aqualogic/heater_switch.yaml`: fused "Heater Mode" switch**, a standalone
+  package alongside `heater.yaml` (unchanged, still just the "Heater" button and
+  "Heater Auto Mode"/"Heater" binary_sensors) rather than added into it — a device config
+  picks one or the other for the mode toggle, not both, so HA doesn't end up with a
+  button and a switch doing the same thing. Self-contained: only needs `bus.yaml`
+  (required by every device config already), not `heater.yaml`. Heater mode isn't in the
+  LED mask — it only appears on the cycling display — so, unlike `switch.yaml`'s
+  generic bit-based cases, its state `lambda:` substring-matches the "Heater Auto" /
+  "Heater Manual Off" screen against `bus.yaml`'s own `display_text` sensor (the same
+  source `heater.yaml`'s own on_frame handler scans), holding its last known state on any
+  tick where the current screen isn't a heater screen rather than an explicit
+  revert-after-timeout. Same `optimistic: true` / `restore_mode: DISABLED` /
+  internal-button-press mechanism as `switch.yaml`. Standalone config-validation harness
+  at `hayward/aqualogic/tests/switch/` covers all three (not wired into
+  `example-device.yaml` yet — planned follow-up).
 
 ### Fixed
 
