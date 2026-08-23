@@ -44,6 +44,21 @@ All notable changes to the published configuration interface are documented here
   escape hatch for the existing flow-sequence/mapping parse restriction, e.g.
   `vars: { bit: "${bit_aux1}", led_name: "AUX 1" }` — quoting a scalar substitution keeps the
   one-line form without triggering the `${...}`-inside-`{`-confuses-the-flow-parser problem.
+- **`hayward/aqualogic/switch.yaml` and `switch_secondary.yaml`: fused toggle-output `switch:`
+  package as template**, replacing the separate `led.yaml` binary_sensor + `button.yaml` button
+  pair with one `switch: platform: template` entity for any output whose panel button just
+  toggles a single relay (Lights, Filter, AUX 1-14, Valve 3, Valve 4/Heater 2, System Off,
+  Service). Turning the switch on or off presses a hidden internal `rs485_frame` button — the
+  same TX path (half-duplex gate, queue policy) a real button entity uses, not a
+  reimplementation — since the panel has only one toggle command, not separate on/off commands.
+  The switch is `optimistic: true` for an immediate assumed-state publish, corrected by a
+  polling `lambda:` that reads the LED-mask bit (`${bit}`, same source `led.yaml` polls) or,
+  for an output whose LED bit isn't a reliable state proof (Heater1: its bit reflects active
+  heating, not Auto/Manual Off mode), a substring match against the cycling display text
+  (`${text_on}` / `${text_off}`). `switch_secondary.yaml` is the wired-local/legacy-firmware
+  counterpart (Service), mirroring `secondary_button.yaml`'s `${secondary_cmd_*}` defaults.
+  Standalone config-validation harness at `hayward/aqualogic/tests/switch/` (not wired into
+  `example-device.yaml` yet — planned follow-up).
 
 ### Fixed
 

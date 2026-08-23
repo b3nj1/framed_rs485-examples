@@ -1,0 +1,18 @@
+packages:
+  common: !include common.yaml
+
+rp2040:
+  board: rpipicow
+
+external_components:
+  - source: github://b3nj1/esphome@v4.6.0
+    components: [rs485_frame]
+
+uart:
+  id: pool_uart
+  tx_pin: GPIO0
+  rx_pin: GPIO1
+  baud_rate: 19200
+  data_bits: 8
+  parity: NONE
+  stop_bits: 2

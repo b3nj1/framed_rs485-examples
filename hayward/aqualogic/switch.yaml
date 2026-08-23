@@ -1,0 +1,111 @@
+# =============================================================================
+# Hayward AquaLogic / ProLogic — fused toggle-output switch package
+# -----------------------------------------------------------------------------
+# Role: package as template
+#
+# Include once per toggle-bit output you want to expose in Home Assistant as a
+# single `switch` entity, instead of the separate `led.yaml` binary_sensor +
+# `button.yaml` button pair. Covers any output whose panel button just toggles
+# a single relay/output — Lights, Filter, AUX 1-14, Valve 3, Valve 4/Heater 2,
+# System Off, Service. NOT for Pool/Spa/Spillover (a 3-way cycle, not a 2-way
+# toggle) or Menu/Left/Right/Plus/Minus (no persistent state to show as ON/OFF).
+#
+# Turning the switch on or off sends the SAME toggle command either way — the
+# panel has no separate "on"/"off" commands, only "toggle" — via a hidden,
+# internal `button:` entity built on the same `rs485_frame` button platform
+# `button.yaml` uses, so the TX path (half-duplex gate, queue policy) is
+# byte-identical to a real button press, not a re-implementation.
+#
+# The switch is `optimistic: true`: turning it on/off in Home Assistant
+# publishes the assumed state immediately. A `lambda:` polled every loop()
+# tick then corrects that assumed state from the real bus-reported value —
+# either the LED-mask bit (${bit}, read from g_led_mask the same way
+# led.yaml's poll does) or, for outputs whose LED bit is unreliable (see
+# Heater1 below), a substring match against the cycling display text
+# (${text_on} / ${text_off}). Because Switch::publish_state() is a stateless,
+# deduplicated overwrite (see notes/switch-feasibility-optimistic.md), the
+# optimistic set and the next poll tick never fight — whichever runs last
+# wins, and the following tick corrects it again if it's still wrong.
+#
+# Required vars:
+#   switch_name     Friendly name shown in Home Assistant.
+#   switch_id       Unique lowercase id suffix for this include (e.g. "lights",
+#                    "aux1") — used to build unique component ids, since
+#                    switch_name may contain spaces.
+#   switch_command  One or more hex values as an unquoted YAML list — the
+#                    toggle command's value field(s), same shape as
+#                    button.yaml's button_command (see that file's header).
+#
+# One of these two state-source var pairs is required:
+#   bit             Bit position in the 32-bit LED mask (see led.yaml's bit
+#                    table). Leave at its default (-1) to use text_on/text_off
+#                    instead.
+#   text_on         Substring of the display text (see bus.yaml's display_text
+#   text_off        sensor) that proves the state is ON / OFF, respectively.
+#                    Use this instead of bit for an output whose LED bit is not
+#                    a reliable proof of state — e.g. Heater1: its LED (bit 0)
+#                    reflects whether the heater is actively firing, not
+#                    whether Auto/Manual Off mode is selected, so the mode
+#                    switch must read the "Heater Auto" / "Heater Manual Off"
+#                    display screen instead (see button-confirmation-signatures.md's
+#                    field-selection rule).
+#
+# Optional vars:
+#   device_class         HA switch device class: "", "outlet", or "switch" (default: "").
+#   disabled_by_default  Whether to hide the entity in HA by default (default: "false").
+#   btn_preamble    Frame-type preamble bytes as an unquoted YAML list (e.g. [0x00, 0x03]).
+#                   Defaults to ${cmd_preamble} (the hub's role preamble).
+#   btn_postamble   Trailing pad bytes as an unquoted YAML list (e.g. []).
+#                   Defaults to ${cmd_postamble}.
+#   btn_element_bytes  Value element width in bytes (default: ${cmd_element_bytes}, usually "1").
+#   btn_endian      Byte order: "big" or "little" (default: ${cmd_endian}).
+#
+# For a button needing the wired-local / legacy-firmware wire format (e.g.
+# Service), use switch_secondary.yaml instead — same vars, defaults to
+# ${secondary_cmd_*} the way secondary_button.yaml does for button.yaml.
+# =============================================================================
+
+defaults:
+  switch_name: "Switch"
+  switch_id: "switch"
+  bit: -1
+  text_on: ""
+  text_off: ""
+  device_class: ""
+  disabled_by_default: "false"
+  btn_preamble: ${cmd_preamble}
+  btn_postamble: ${cmd_postamble}
+  btn_element_bytes: ${cmd_element_bytes}
+  btn_endian: ${cmd_endian}
+
+button:
+  - platform: rs485_frame
+    id: switch_${switch_id}_btn
+    rs485_frame_id: pool
+    internal: true
+    value: ${switch_command}
+    command_format:
+      preamble: ${btn_preamble}
+      value_element_bytes: ${btn_element_bytes}
+      endian: ${btn_endian}
+      postamble: ${btn_postamble}
+
+switch:
+  - platform: template
+    id: switch_${switch_id}
+    name: "${switch_name}"
+    device_class: ${device_class}
+    disabled_by_default: ${disabled_by_default}
+    optimistic: true
+    turn_on_action:
+      - button.press: switch_${switch_id}_btn
+    turn_off_action:
+      - button.press: switch_${switch_id}_btn
+    lambda: |-
+      if (${bit} >= 0) {
+        return bool(id(g_led_mask) & (1UL << ${bit}));
+      }
+      const std::string &txt = id(display_text).state;
+      if (txt.find("${text_on}") != std::string::npos) return true;
+      if (txt.find("${text_off}") != std::string::npos) return false;
+      return {};
