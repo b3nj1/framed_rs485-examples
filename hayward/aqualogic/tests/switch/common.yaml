@@ -1,9 +1,9 @@
-# Standalone config-validation harness for switch.yaml / switch_secondary.yaml, plus the
-# fused Heater Mode switch in heater.yaml. Not a user-facing example -- see this
-# directory's own README.md. Exercises the bit-based case (Lights, via switch.yaml), the
-# secondary/wired-local wire format (Service, via switch_secondary.yaml), and heater.yaml's
-# own fused switch (Heater Mode, which reads heater_auto's already-latched state rather
-# than a bit).
+# Standalone config-validation harness for switch.yaml / switch_secondary.yaml /
+# heater_switch.yaml. Not a user-facing example -- see this directory's own README.md.
+# Exercises the bit-based case (Lights, via switch.yaml), the secondary/wired-local wire
+# format (Service, via switch_secondary.yaml), and the display-text case (Heater Mode, via
+# the self-contained heater_switch.yaml -- deliberately included instead of heater.yaml,
+# not alongside it, matching the "pick one or the other" guidance in that file's header).
 substitutions:
   name: rs485-frame-switch-test
   cmd_preamble: [0x00, 0x83, 0x01]
@@ -21,7 +21,7 @@ logger:
 
 packages:
   bus: !include ../../bus.yaml
-  heater: !include ../../heater.yaml
+  heater_switch: !include ../../heater_switch.yaml
   switch_lights: !include
     file: ../../switch.yaml
     vars:
