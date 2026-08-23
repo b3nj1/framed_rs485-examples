@@ -3,12 +3,16 @@
 # -----------------------------------------------------------------------------
 # Role: package as template
 #
-# Include once per toggle-bit output you want to expose in Home Assistant as a
-# single `switch` entity, instead of the separate `led.yaml` binary_sensor +
-# `button.yaml` button pair. Covers any output whose panel button just toggles
-# a single relay/output — Lights, Filter, AUX 1-14, Valve 3, Valve 4/Heater 2,
-# System Off, Service. NOT for Pool/Spa/Spillover (a 3-way cycle, not a 2-way
-# toggle) or Menu/Left/Right/Plus/Minus (no persistent state to show as ON/OFF).
+# Include once per LED-mask-bit toggle output you want to expose in Home
+# Assistant as a single `switch` entity, instead of the separate `led.yaml`
+# binary_sensor + `button.yaml` button pair. Covers any output whose panel
+# button just toggles a single relay/output — Lights, Filter, AUX 1-14,
+# Valve 3, Valve 4/Heater 2, System Off, Service. NOT for Pool/Spa/Spillover
+# (a 3-way cycle, not a 2-way toggle) or Menu/Left/Right/Plus/Minus (no
+# persistent state to show as ON/OFF). NOT for Heater1's Auto/Manual Off mode
+# either — its LED bit reflects active heating, not the mode, so that toggle
+# is a fused switch of its own in `heater.yaml` (reads the display-text latch
+# `heater.yaml` already decodes) rather than an include of this file.
 #
 # Turning the switch on or off sends the SAME toggle command either way — the
 # panel has no separate "on"/"off" commands, only "toggle" — via a hidden,
@@ -18,37 +22,29 @@
 #
 # The switch is `optimistic: true`: turning it on/off in Home Assistant
 # publishes the assumed state immediately. A `lambda:` polled every loop()
-# tick then corrects that assumed state from the real bus-reported value —
-# either the LED-mask bit (${bit}, read from g_led_mask the same way
-# led.yaml's poll does) or, for outputs whose LED bit is unreliable (see
-# Heater1 below), a substring match against the cycling display text
-# (${text_on} / ${text_off}). Because Switch::publish_state() is a stateless,
-# deduplicated overwrite (see notes/switch-feasibility-optimistic.md), the
-# optimistic set and the next poll tick never fight — whichever runs last
-# wins, and the following tick corrects it again if it's still wrong.
+# tick then corrects that assumed state from the real bus-reported LED-mask
+# bit (${bit}, read from g_led_mask the same way led.yaml's poll does).
+# Because Switch::publish_state() is a stateless, deduplicated overwrite (see
+# notes/switch-feasibility-optimistic.md), the optimistic set and the next
+# poll tick never fight — whichever runs last wins, and the following tick
+# corrects it again if it's still wrong.
+#
+# `restore_mode: DISABLED` is required, not cosmetic: the template switch
+# platform's default (`ALWAYS_OFF`) makes it call `turn_off()` — which fires
+# `turn_off_action` and presses the internal button — from inside its own
+# `setup()`, which runs at a higher setup_priority than the `rs485_frame` hub
+# itself. That press would reach `queue_command_values()` before the hub's
+# `setup()` has sized its TX queue, and would also send a real toggle command
+# to the panel on every boot regardless. `DISABLED` skips both.
 #
 # Required vars:
 #   switch_name     Friendly name shown in Home Assistant.
-#   switch_id       Unique lowercase id suffix for this include (e.g. "lights",
-#                    "aux1") — used to build unique component ids, since
-#                    switch_name may contain spaces.
+#   bit             Bit position in the 32-bit LED mask (see led.yaml's bit
+#                    table) — also doubles as this include's unique id
+#                    suffix, the same way led.yaml's `led_bit_${bit}` does.
 #   switch_command  One or more hex values as an unquoted YAML list — the
 #                    toggle command's value field(s), same shape as
 #                    button.yaml's button_command (see that file's header).
-#
-# One of these two state-source var pairs is required:
-#   bit             Bit position in the 32-bit LED mask (see led.yaml's bit
-#                    table). Leave at its default (-1) to use text_on/text_off
-#                    instead.
-#   text_on         Substring of the display text (see bus.yaml's display_text
-#   text_off        sensor) that proves the state is ON / OFF, respectively.
-#                    Use this instead of bit for an output whose LED bit is not
-#                    a reliable proof of state — e.g. Heater1: its LED (bit 0)
-#                    reflects whether the heater is actively firing, not
-#                    whether Auto/Manual Off mode is selected, so the mode
-#                    switch must read the "Heater Auto" / "Heater Manual Off"
-#                    display screen instead (see button-confirmation-signatures.md's
-#                    field-selection rule).
 #
 # Optional vars:
 #   device_class         HA switch device class: "", "outlet", or "switch" (default: "").
@@ -67,10 +63,6 @@
 
 defaults:
   switch_name: "Switch"
-  switch_id: "switch"
-  bit: -1
-  text_on: ""
-  text_off: ""
   device_class: ""
   disabled_by_default: "false"
   btn_preamble: ${cmd_preamble}
@@ -80,7 +72,7 @@ defaults:
 
 button:
   - platform: rs485_frame
-    id: switch_${switch_id}_btn
+    id: switch_bit_${bit}_btn
     rs485_frame_id: pool
     internal: true
     value: ${switch_command}
@@ -92,20 +84,15 @@ button:
 
 switch:
   - platform: template
-    id: switch_${switch_id}
+    id: switch_bit_${bit}
     name: "${switch_name}"
     device_class: ${device_class}
     disabled_by_default: ${disabled_by_default}
     optimistic: true
+    restore_mode: DISABLED
     turn_on_action:
-      - button.press: switch_${switch_id}_btn
+      - button.press: switch_bit_${bit}_btn
     turn_off_action:
-      - button.press: switch_${switch_id}_btn
+      - button.press: switch_bit_${bit}_btn
     lambda: |-
-      if (${bit} >= 0) {
-        return bool(id(g_led_mask) & (1UL << ${bit}));
-      }
-      const std::string &txt = id(display_text).state;
-      if (txt.find("${text_on}") != std::string::npos) return true;
-      if (txt.find("${text_off}") != std::string::npos) return false;
-      return {};
+      return bool(id(g_led_mask) & (1UL << ${bit}));

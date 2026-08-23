@@ -46,19 +46,29 @@ All notable changes to the published configuration interface are documented here
   one-line form without triggering the `${...}`-inside-`{`-confuses-the-flow-parser problem.
 - **`hayward/aqualogic/switch.yaml` and `switch_secondary.yaml`: fused toggle-output `switch:`
   package as template**, replacing the separate `led.yaml` binary_sensor + `button.yaml` button
-  pair with one `switch: platform: template` entity for any output whose panel button just
-  toggles a single relay (Lights, Filter, AUX 1-14, Valve 3, Valve 4/Heater 2, System Off,
-  Service). Turning the switch on or off presses a hidden internal `rs485_frame` button — the
-  same TX path (half-duplex gate, queue policy) a real button entity uses, not a
+  pair with one `switch: platform: template` entity for any LED-mask-bit output whose panel
+  button just toggles a single relay (Lights, Filter, AUX 1-14, Valve 3, Valve 4/Heater 2,
+  System Off, Service). Turning the switch on or off presses a hidden internal `rs485_frame`
+  button — the same TX path (half-duplex gate, queue policy) a real button entity uses, not a
   reimplementation — since the panel has only one toggle command, not separate on/off commands.
   The switch is `optimistic: true` for an immediate assumed-state publish, corrected by a
-  polling `lambda:` that reads the LED-mask bit (`${bit}`, same source `led.yaml` polls) or,
-  for an output whose LED bit isn't a reliable state proof (Heater1: its bit reflects active
-  heating, not Auto/Manual Off mode), a substring match against the cycling display text
-  (`${text_on}` / `${text_off}`). `switch_secondary.yaml` is the wired-local/legacy-firmware
-  counterpart (Service), mirroring `secondary_button.yaml`'s `${secondary_cmd_*}` defaults.
-  Standalone config-validation harness at `hayward/aqualogic/tests/switch/` (not wired into
-  `example-device.yaml` yet — planned follow-up).
+  polling `lambda:` that reads the LED-mask bit (`${bit}`, same source `led.yaml` polls, and
+  reused as this include's unique id suffix the way `led.yaml`'s own `led_bit_${bit}` already
+  does — no separate id var needed). `restore_mode: DISABLED` is required: the template switch
+  platform's default (`ALWAYS_OFF`) calls `turn_off()` — pressing the button — from inside its
+  own `setup()`, which runs at a higher `setup_priority` than the `rs485_frame` hub itself,
+  reaching `queue_command_values()` before the hub's `setup()` has sized its TX queue (crash),
+  and would also send a real toggle command to the panel on every boot regardless (a second,
+  independent bug). `switch_secondary.yaml` is the wired-local/legacy-firmware counterpart
+  (Service), mirroring `secondary_button.yaml`'s `${secondary_cmd_*}` defaults.
+- **`hayward/aqualogic/heater.yaml`: fused "Heater Mode" switch**, alongside the existing
+  "Heater" button and "Heater Auto Mode" binary_sensor (both unchanged). Its LED bit reflects
+  active heating, not Auto/Manual Off mode, so — unlike `switch.yaml`'s generic bit-based
+  cases — its state `lambda:` simply reads the existing `heater_auto` binary_sensor's
+  already-decoded/latched display-text value rather than re-parsing the display a second time.
+  Same `optimistic: true` / `restore_mode: DISABLED` / internal-button-press mechanism as
+  `switch.yaml`. Standalone config-validation harness at `hayward/aqualogic/tests/switch/`
+  covers all three (not wired into `example-device.yaml` yet — planned follow-up).
 
 ### Fixed
 
