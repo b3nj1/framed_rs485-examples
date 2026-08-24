@@ -36,8 +36,15 @@ or adapter is needed.
 | GND | GREEN | GND |
 
 Set `board`/`variant` in the config's `esp32:` block to a valid ESP32-S3 board/variant name from
-https://esphome.io/components/esp32 (for example `board: esp32-s3-devkitc-1`, `variant: esp32s3`)
-and the UART / flow-control pins to match the board.
+https://esphome.io/components/esp32 (for example `board: esp32-s3-devkitc-1`, `variant: esp32s3`).
+This board's built-in RS485 transceiver uses these `substitutions:`:
+
+```yaml
+substitutions:
+  tx_pin: GPIO17
+  rx_pin: GPIO18
+  flow_control_pin: GPIO21
+```
 
 ### Recommended framework: ESP-IDF
 
@@ -55,9 +62,9 @@ Connect adapter TX/RX to the device UART pins in your config. If you receive no 
 and `rx_pin` — some adapters label DI/RO from the adapter's own perspective.
 
 ```
-GPIO21 --> DE/RE
-GPIO17 --> DI  (TX)
-GPIO18 --> RO  (RX)
+your flow_control_pin --> DE/RE
+your tx_pin           --> DI  (TX)
+your rx_pin           --> RO  (RX)
 ```
 
 ## Quick start: assemble your device config
