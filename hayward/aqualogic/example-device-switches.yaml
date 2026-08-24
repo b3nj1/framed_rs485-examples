@@ -1,23 +1,24 @@
 # =============================================================================
-# Hayward AquaLogic / ProLogic — example device config
+# Hayward AquaLogic / ProLogic — example device config (switch-outputs variant)
 # -----------------------------------------------------------------------------
-# Role:        device config with remote packages
-# Status:      tested-on-hardware
+# Role:        device config with remote packages (switches variant of example-device.yaml)
+# Status:      config-validated (schema only, via `esphome config`; not yet flashed as this
+#              combined file — see switch.yaml/switch_secondary.yaml's own hardware validation)
 # Tested on:   Hayward AquaLogic / ProLogic; ESP32-S3 (Waveshare ESP32-S3-RS485-CAN)
 #
 # Contributors:
 #   - b3nj1 (@b3nj1)
 # =============================================================================
 #
-# Sibling to example-device-switches.yaml: same shared boilerplate (substitutions:, esphome:/
-# esp32:/logger:, required bus.yaml, "LED indicators: status" states, "Buttons: status-navigation",
-# the legacy secondary_button block, diagnostics, response_monitor examples), but that file's
-# toggle-output entries wrap switch.yaml / switch_secondary.yaml instead of a separate led.yaml
-# binary_sensor + button.yaml button pair per output — so a toggleable relay (Lights, Filter,
-# AUX 1-14, Valve 3, Valve 4, System Off, Service) shows up in Home Assistant as a single
-# optimistic `switch` entity instead of two separate entities. Pick ONE of this file or
-# example-device-switches.yaml for your device config, not both — using both would create
-# duplicate entities for the same physical relay.
+# Sibling to example-device.yaml: same shared boilerplate (substitutions:, esphome:/esp32:/
+# logger:, required bus.yaml, "LED indicators: status" states, "Buttons: status-navigation",
+# the legacy secondary_button block, diagnostics, response_monitor examples), but the
+# toggle-output entries below wrap switch.yaml / switch_secondary.yaml instead of a separate
+# led.yaml binary_sensor + button.yaml button pair per output — so a toggleable relay
+# (Lights, Filter, AUX 1-14, Valve 3, Valve 4, System Off, Service) shows up in Home
+# Assistant as a single optimistic `switch` entity instead of two separate entities. Pick
+# ONE of example-device.yaml or this file for your device config, not both — using both
+# would create duplicate entities for the same physical relay.
 #
 # HOW TO USE THIS FILE
 #   1. Copy it to your ESPHome configuration directory and rename it (the name
@@ -26,10 +27,10 @@
 #      esp32: (board, variant, ...) below.
 #   3. In the packages.rs485.files list, uncomment the optional packages you have
 #      (pump-vsp.yaml, heater.yaml). The bus.yaml line is REQUIRED — leave it
-#      uncommented. LED and button entries are already active; rename labels to
-#      match your load, and remove entries for gear your system doesn't have.
-#      Equipment-specific LEDs and buttons are hidden in HA by default — enable
-#      them in Settings > Entities once you know which ones apply to you.
+#      uncommented. LED, switch, and button entries are already active; rename labels
+#      to match your load, and remove entries for gear your system doesn't have.
+#      Equipment-specific entries are hidden in HA by default — enable them in
+#      Settings > Entities once you know which ones apply to you.
 #   4. Add wifi_ssid / wifi_password to your secrets.yaml (remote packages cannot
 #      contain !secret, so wifi/api/ota stay in this file).
 #   5. Flash. Want the periodic diagnostic stats table (frame cadence, unique
@@ -191,57 +192,6 @@ packages:
       - path: hayward/aqualogic/blink_led.yaml
         vars: { bit: "${bit_filter}", led_name: "Pump Low Speed", device_class: running, disabled_by_default: "true" }
 
-      # --- LED indicators: switch-like [buttons] --- states that also have a switch-eligible
-      # button counterpart below (Lights/Filter/AUX/Valve/Service/System Off toggles, plus Super
-      # Chlorinate). This file exposes them as separate read-only led.yaml indicators +
-      # button.yaml commands; a switches-flavor file would replace this section with switch.yaml
-      # entries instead, so it is not expected to match that file's counterpart section line for
-      # line.
-      # Disabled by default (hidden in HA; enable in Settings > Entities as needed):
-      #   AUX channels, valves, Service, Super Chlorinate.
-      - path: hayward/aqualogic/led.yaml
-        vars: { bit: "${bit_filter}", led_name: "Filter", device_class: running }
-      - path: hayward/aqualogic/led.yaml
-        vars: { bit: "${bit_lights}", led_name: "Lights", device_class: light }
-      - path: hayward/aqualogic/led.yaml
-        vars: { bit: "${bit_aux1}", led_name: "AUX 1", device_class: running, disabled_by_default: "true" }
-      - path: hayward/aqualogic/led.yaml
-        vars: { bit: "${bit_aux2}", led_name: "AUX 2", device_class: running, disabled_by_default: "true" }
-      - path: hayward/aqualogic/led.yaml
-        vars: { bit: "${bit_service}", led_name: "Service", device_class: running, disabled_by_default: "true" }
-      - path: hayward/aqualogic/led.yaml
-        vars: { bit: "${bit_aux3}", led_name: "AUX 3", device_class: running, disabled_by_default: "true" }
-      - path: hayward/aqualogic/led.yaml
-        vars: { bit: "${bit_aux4}", led_name: "AUX 4", device_class: running, disabled_by_default: "true" }
-      - path: hayward/aqualogic/led.yaml
-        vars: { bit: "${bit_aux5}", led_name: "AUX 5", device_class: running, disabled_by_default: "true" }
-      - path: hayward/aqualogic/led.yaml
-        vars: { bit: "${bit_aux6}", led_name: "AUX 6", device_class: running, disabled_by_default: "true" }
-      - path: hayward/aqualogic/led.yaml
-        vars: { bit: "${bit_valve3}", led_name: "Valve 3", device_class: running, disabled_by_default: "true" }
-      - path: hayward/aqualogic/led.yaml
-        vars: { bit: "${bit_valve4}", led_name: "Valve 4", device_class: running, disabled_by_default: "true" }
-      - path: hayward/aqualogic/led.yaml
-        vars: { bit: "${bit_system_off}", led_name: "System Off", device_class: problem }
-      - path: hayward/aqualogic/led.yaml
-        vars: { bit: "${bit_aux7}", led_name: "AUX 7", device_class: running, disabled_by_default: "true" }
-      - path: hayward/aqualogic/led.yaml
-        vars: { bit: "${bit_aux8}", led_name: "AUX 8", device_class: running, disabled_by_default: "true" }
-      - path: hayward/aqualogic/led.yaml
-        vars: { bit: "${bit_aux9}", led_name: "AUX 9", device_class: running, disabled_by_default: "true" }
-      - path: hayward/aqualogic/led.yaml
-        vars: { bit: "${bit_aux10}", led_name: "AUX 10", device_class: running, disabled_by_default: "true" }
-      - path: hayward/aqualogic/led.yaml
-        vars: { bit: "${bit_aux11}", led_name: "AUX 11", device_class: running, disabled_by_default: "true" }
-      - path: hayward/aqualogic/led.yaml
-        vars: { bit: "${bit_aux12}", led_name: "AUX 12", device_class: running, disabled_by_default: "true" }
-      - path: hayward/aqualogic/led.yaml
-        vars: { bit: "${bit_aux13}", led_name: "AUX 13", device_class: running, disabled_by_default: "true" }
-      - path: hayward/aqualogic/led.yaml
-        vars: { bit: "${bit_aux14}", led_name: "AUX 14", device_class: running, disabled_by_default: "true" }
-      - path: hayward/aqualogic/led.yaml
-        vars: { bit: "${bit_super_chlorinate}", led_name: "Super Chlorinate", device_class: running, disabled_by_default: "true" }
-
       # --- Buttons: status-navigation --- rename labels to match your load; remove buttons your
       # panel lacks. No persistent on/off state to speculate about, so these stay button: only —
       # not eligible for switch conversion, and this section is expected to be identical in a
@@ -288,78 +238,85 @@ packages:
       # - path: hayward/aqualogic/button.yaml
       #   vars: { button_name: "Menu Unlock End", button_command: [0x00, 0x00, 0x00, 0x00, 0x05, 0x00, 0x00, 0x00] }
 
-      # --- Buttons: switch-like [buttons] --- commands with a clean on/off (or cycle) counterpart
-      # that a switches-flavor file would instead expose via switch.yaml/select — see switch.yaml's
-      # own header for the full eligible set. Not expected to match that file's counterpart section.
-      - path: hayward/aqualogic/button.yaml
-        vars: { button_name: "Filter", button_command: [0x80, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00, 0x00] }
-      - path: hayward/aqualogic/button.yaml
-        vars: { button_name: "Lights", button_command: [0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00] }
-      # Legacy fw v2.85 uses shorter wired-commands for Lights:
-      # - path: hayward/aqualogic/secondary_button.yaml
-      #   vars: { button_name: "Lights", button_command: [0x00, 0x01, 0x00, 0x01] }
+      # --- Switch outputs [switches] --- rename labels to match your load; remove entries your
+      # panel lacks. This is the switches-flavor counterpart to example-device.yaml's "LED
+      # indicators: switch-like [buttons]" + "Buttons: switch-like [buttons]" sections: instead of
+      # a separate read-only led.yaml binary_sensor plus a button.yaml command, each toggleable
+      # relay here is ONE optimistic switch: entity, built on switch.yaml (wireless role) or
+      # switch_secondary.yaml (wired-local role, for Service) — see that file's own header for how
+      # the optimistic-set / lambda-poll correction works. Command values, bit positions, and
+      # confidence tiers are identical to example-device.yaml's switch-like button list; only the
+      # entity shape differs.
+      # Disabled by default (hidden in HA; enable in Settings > Entities as needed):
+      #   AUX channels, valves, Service, Super Chlorinate.
+      - path: hayward/aqualogic/switch.yaml
+        vars: { switch_name: "Filter", bit: "${bit_filter}", switch_command: [0x80, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00, 0x00] }
+      - path: hayward/aqualogic/switch.yaml
+        vars: { switch_name: "Lights", bit: "${bit_lights}", switch_command: [0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00] }
 
       # Service — wired local frame (0x0002), no postamble. Disabled by default:
       # maintenance use only; most users should not trigger this accidentally.
-      - path: hayward/aqualogic/secondary_button.yaml
-        vars: { button_name: "Service", button_command: [0x08, 0x00, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00], disabled_by_default: "true" }
-      # Legacy fw v2.85: Service button_command value only (uncomment the alternative below):
-      #   vars: { button_name: "Service", button_command: [0x08, 0x00, 0x08, 0x00], disabled_by_default: "true" }
+      - path: hayward/aqualogic/switch_secondary.yaml
+        vars: { switch_name: "Service", bit: "${bit_service}", switch_command: [0x08, 0x00, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00], disabled_by_default: "true" }
+      # Legacy fw v2.85: Service switch_command value only (uncomment the alternative below):
+      #   vars: { switch_name: "Service", bit: "${bit_service}", switch_command: [0x08, 0x00, 0x08, 0x00], disabled_by_default: "true" }
 
       # System Off — always wireless regardless of hub role.
-      - path: hayward/aqualogic/button.yaml
+      - path: hayward/aqualogic/switch.yaml
         vars:
-          button_name: "System Off"
-          button_command: [0x08, 0x00, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00]
+          switch_name: "System Off"
+          bit: "${bit_system_off}"
+          switch_command: [0x08, 0x00, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00]
           btn_preamble: [0x00, 0x83, 0x01]   # wireless — do not change
           btn_postamble: [0x00]
       # AUX relays and valves — disabled by default; enable in HA Settings > Entities.
       # Rename labels to match your load (e.g. "Pool Light", "Spa Jets", "Booster Pump").
       # AUX 1-2 hardware-tested. AUX 3-7 confirmed by swilson + smith288, not hw-tested.
-      - path: hayward/aqualogic/button.yaml
-        vars: { button_name: "AUX 1", button_command: [0x00, 0x02, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00], disabled_by_default: "true" }
-      - path: hayward/aqualogic/button.yaml
-        vars: { button_name: "AUX 2", button_command: [0x00, 0x04, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00], disabled_by_default: "true" }
-      - path: hayward/aqualogic/button.yaml
-        vars: { button_name: "AUX 3", button_command: [0x00, 0x08, 0x00, 0x00, 0x00, 0x08, 0x00, 0x00], disabled_by_default: "true" }
-      - path: hayward/aqualogic/button.yaml
-        vars: { button_name: "AUX 4", button_command: [0x00, 0x10, 0x00, 0x00, 0x00, 0x10, 0x00, 0x00], disabled_by_default: "true" }
-      - path: hayward/aqualogic/button.yaml
-        vars: { button_name: "AUX 5", button_command: [0x00, 0x20, 0x00, 0x00, 0x00, 0x20, 0x00, 0x00], disabled_by_default: "true" }
-      - path: hayward/aqualogic/button.yaml
-        vars: { button_name: "AUX 6", button_command: [0x00, 0x40, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00], disabled_by_default: "true" }
-      - path: hayward/aqualogic/button.yaml
-        vars: { button_name: "AUX 7", button_command: [0x00, 0x80, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00], disabled_by_default: "true" }
+      - path: hayward/aqualogic/switch.yaml
+        vars: { switch_name: "AUX 1", bit: "${bit_aux1}", switch_command: [0x00, 0x02, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00], disabled_by_default: "true" }
+      - path: hayward/aqualogic/switch.yaml
+        vars: { switch_name: "AUX 2", bit: "${bit_aux2}", switch_command: [0x00, 0x04, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00], disabled_by_default: "true" }
+      - path: hayward/aqualogic/switch.yaml
+        vars: { switch_name: "AUX 3", bit: "${bit_aux3}", switch_command: [0x00, 0x08, 0x00, 0x00, 0x00, 0x08, 0x00, 0x00], disabled_by_default: "true" }
+      - path: hayward/aqualogic/switch.yaml
+        vars: { switch_name: "AUX 4", bit: "${bit_aux4}", switch_command: [0x00, 0x10, 0x00, 0x00, 0x00, 0x10, 0x00, 0x00], disabled_by_default: "true" }
+      - path: hayward/aqualogic/switch.yaml
+        vars: { switch_name: "AUX 5", bit: "${bit_aux5}", switch_command: [0x00, 0x20, 0x00, 0x00, 0x00, 0x20, 0x00, 0x00], disabled_by_default: "true" }
+      - path: hayward/aqualogic/switch.yaml
+        vars: { switch_name: "AUX 6", bit: "${bit_aux6}", switch_command: [0x00, 0x40, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00], disabled_by_default: "true" }
+      - path: hayward/aqualogic/switch.yaml
+        vars: { switch_name: "AUX 7", bit: "${bit_aux7}", switch_command: [0x00, 0x80, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00], disabled_by_default: "true" }
       # AUX 8-14: command bytes are in an unusual byte position; swilson source only,
       # no independent wire-capture confirmation. Keep commented until hw-tested.
-      # - path: hayward/aqualogic/button.yaml
-      #   vars: { button_name: "AUX 8",  button_command: [0x00, 0x00, 0x08, 0x00, 0x00, 0x00, 0x08, 0x00], disabled_by_default: "true" }
-      # - path: hayward/aqualogic/button.yaml
-      #   vars: { button_name: "AUX 9",  button_command: [0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 0x10, 0x00], disabled_by_default: "true" }
-      # - path: hayward/aqualogic/button.yaml
-      #   vars: { button_name: "AUX 10", button_command: [0x00, 0x00, 0x20, 0x00, 0x00, 0x00, 0x20, 0x00], disabled_by_default: "true" }
-      # - path: hayward/aqualogic/button.yaml
-      #   vars: { button_name: "AUX 11", button_command: [0x00, 0x00, 0x40, 0x00, 0x00, 0x00, 0x40, 0x00], disabled_by_default: "true" }
-      # - path: hayward/aqualogic/button.yaml
-      #   vars: { button_name: "AUX 12", button_command: [0x00, 0x00, 0x80, 0x00, 0x00, 0x00, 0x80, 0x00], disabled_by_default: "true" }
-      # - path: hayward/aqualogic/button.yaml
-      #   vars: { button_name: "AUX 13", button_command: [0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01], disabled_by_default: "true" }
-      # - path: hayward/aqualogic/button.yaml
-      #   vars: { button_name: "AUX 14", button_command: [0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x02], disabled_by_default: "true" }
-      - path: hayward/aqualogic/button.yaml
-        vars: { button_name: "Valve 3", button_command: [0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00], disabled_by_default: "true" }
-      - path: hayward/aqualogic/button.yaml
-        vars: { button_name: "Valve 4", button_command: [0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x02, 0x00], disabled_by_default: "true" }
+      # - path: hayward/aqualogic/switch.yaml
+      #   vars: { switch_name: "AUX 8",  bit: "${bit_aux8}",  switch_command: [0x00, 0x00, 0x08, 0x00, 0x00, 0x00, 0x08, 0x00], disabled_by_default: "true" }
+      # - path: hayward/aqualogic/switch.yaml
+      #   vars: { switch_name: "AUX 9",  bit: "${bit_aux9}",  switch_command: [0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 0x10, 0x00], disabled_by_default: "true" }
+      # - path: hayward/aqualogic/switch.yaml
+      #   vars: { switch_name: "AUX 10", bit: "${bit_aux10}", switch_command: [0x00, 0x00, 0x20, 0x00, 0x00, 0x00, 0x20, 0x00], disabled_by_default: "true" }
+      # - path: hayward/aqualogic/switch.yaml
+      #   vars: { switch_name: "AUX 11", bit: "${bit_aux11}", switch_command: [0x00, 0x00, 0x40, 0x00, 0x00, 0x00, 0x40, 0x00], disabled_by_default: "true" }
+      # - path: hayward/aqualogic/switch.yaml
+      #   vars: { switch_name: "AUX 12", bit: "${bit_aux12}", switch_command: [0x00, 0x00, 0x80, 0x00, 0x00, 0x00, 0x80, 0x00], disabled_by_default: "true" }
+      # - path: hayward/aqualogic/switch.yaml
+      #   vars: { switch_name: "AUX 13", bit: "${bit_aux13}", switch_command: [0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01], disabled_by_default: "true" }
+      # - path: hayward/aqualogic/switch.yaml
+      #   vars: { switch_name: "AUX 14", bit: "${bit_aux14}", switch_command: [0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x02], disabled_by_default: "true" }
+      - path: hayward/aqualogic/switch.yaml
+        vars: { switch_name: "Valve 3", bit: "${bit_valve3}", switch_command: [0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00], disabled_by_default: "true" }
+      - path: hayward/aqualogic/switch.yaml
+        vars: { switch_name: "Valve 4", bit: "${bit_valve4}", switch_command: [0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x02, 0x00], disabled_by_default: "true" }
       # Super Chlorinate: command byte derived from swilson/aqualogic's keys.py
       # (SUPER_CHLORINATE = 0x04000000), cross-checked against every other confirmed
-      # button_command in this file under the same encoding -- but not itself captured off a
+      # switch_command in this file under the same encoding -- but not itself captured off a
       # live bus. Same confidence tier as AUX 8-14 above: keep commented until hw-tested.
       # swilson's source marks this key wireless-only, so it needs the wireless btn_preamble
       # (like System Off above) rather than the default wired ${cmd_preamble}.
-      # - path: hayward/aqualogic/button.yaml
+      # - path: hayward/aqualogic/switch.yaml
       #   vars:
-      #     button_name: "Super Chlorinate"
-      #     button_command: [0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x04]
+      #     switch_name: "Super Chlorinate"
+      #     bit: "${bit_super_chlorinate}"
+      #     switch_command: [0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x04]
       #     btn_preamble: [0x00, 0x83, 0x01]   # wireless — do not change
       #     btn_postamble: [0x00]
       #     disabled_by_default: "true"
@@ -373,12 +330,27 @@ packages:
       # only as far down as you need.
       # -----------------------------------------------------------------------------
       #
-      # Entries below follow the same order as the button list above. response_monitor_fields.yaml
-      # is required by every entry below -- add this ONE line, no matter how many entries you
-      # enable (a second copy silently corrupts it, see that file's own header). Add it, and
-      # whichever specific entries you want, to the packages.rs485.files list above (anywhere
-      # after the corresponding button.yaml include) -- not here.
+      # Entries below follow the same order as the Switch outputs / status-navigation lists
+      # above. response_monitor_fields.yaml is required by every entry below -- add this ONE
+      # line, no matter how many entries you enable (a second copy silently corrupts it, see
+      # that file's own header). Add it, and whichever specific entries you want, to the
+      # packages.rs485.files list above (anywhere after the corresponding button/switch include)
+      # -- not here.
       # - path: hayward/aqualogic/response_monitor_fields.yaml
+      #
+      # NOTE: response_monitor.yaml/response_monitor_mask.yaml/response_monitor_display.yaml key
+      # off a button's own name: (trigger.button_name:). switch.yaml's/switch_secondary.yaml's
+      # internal button (used by the Switch outputs section above) is `internal: true` with no
+      # name: set -- these commented examples below reuse the same switch_name label the button
+      # would otherwise have carried (e.g. "Filter"), so uncommenting one as-is will fail
+      # validation with "button_name matches 0 buttons on this hub". The component does support
+      # targeting a button by its id: instead (trigger.button_id:, e.g. switch_bit_${bit_filter}_btn
+      # for the Filter switch above) -- response_monitor.yaml/mask/display don't expose a
+      # button_id var yet, so that form needs a hand-written rs485_frame: response_monitor: block
+      # (see the on_confirmed:/on_failed: example below for that raw block shape) rather than
+      # these wrapper includes. Confirming a switch-based toggle via button_id is left as an
+      # exercise / future package-file addition; the entries below are unmodified from
+      # example-device.yaml for reference.
       #
       # - path: hayward/aqualogic/response_monitor.yaml
       #   vars: { monitor_name: "filter", button_name: "Filter", bit: "${bit_filter}" }

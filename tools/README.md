@@ -275,3 +275,27 @@ released tag is currently pinned (a real network fetch) instead of a local check
 defaults to this repo's current HEAD commit; pass a released tag to instead validate exactly what a
 user pulling that tag would get. Run automatically in CI (`.github/workflows/tests.yml`) against
 the `b3nj1/esphome` fork's matching branch.
+
+# check_example_sync.py
+
+`hayward/aqualogic/example-device.yaml` and `example-device-switches.yaml` are siblings: same
+`substitutions:`/`esphome:`/`esp32:`/`logger:` blocks, same required `bus.yaml`, same "LED
+indicators: status" / "Buttons: status-navigation" sections, same diagnostics/response-monitor
+documentation — but the switches-flavor file replaces the "switch-like" LED/Buttons entries with a
+"Switch outputs" section built on `switch.yaml`/`switch_secondary.yaml`. This script checks the two
+files don't quietly drift apart on the parts that are supposed to stay identical.
+
+Two-bucket model: untagged section headers (`# --- Title ---`) and the four top-level shared keys
+must be byte-identical between the two files, in either direction (missing or differing is an
+error). Flavor-tagged section headers (`# --- Title [tag] ---`, e.g. `[buttons]`/`[switches]`) are
+exempt — allowed to exist in only one file, or differ completely, since those are exactly the
+sections meant to differ.
+
+```
+python3 tools/check_example_sync.py
+```
+
+Defaults to the real `example-device.yaml` / `example-device-switches.yaml` pair; pass two paths
+to check a different pair (used by `tests/test_check_example_sync.py`'s fixture-based tests). Run
+automatically in CI (`.github/workflows/tests.yml`), and covered by its own unit tests under
+`tests/` (`pytest`, no `esphome` install required).

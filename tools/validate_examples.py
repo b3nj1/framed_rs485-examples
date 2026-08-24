@@ -58,6 +58,11 @@ ENTRY_CONFIGS = {
         "- hayward/aqualogic/heater.yaml          # Gas/heat-pump heater — Status: tested",
         "- hayward/aqualogic/diagnostics.yaml     # Diagnostic stats table + frame dump — Status: tested",
     ],
+    "hayward/aqualogic/example-device-switches.yaml": [
+        "- hayward/aqualogic/pump-vsp.yaml        # Variable-speed pump — Status: tested",
+        "- hayward/aqualogic/heater.yaml          # Gas/heat-pump heater — Status: tested",
+        "- hayward/aqualogic/diagnostics.yaml     # Diagnostic stats table + frame dump — Status: tested",
+    ],
     "jandy/aqualink-rs/example-allbutton.yaml": [
         "- jandy/aqualink-rs/leds-display.yaml    # Panel LEDs + display — Status: UNTESTED",
         "- jandy/aqualink-rs/swg.yaml             # Salt chlorinator — Status: UNTESTED",
