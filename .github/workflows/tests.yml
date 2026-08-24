@@ -42,3 +42,6 @@ jobs:
         working-directory: rs485_frame-examples
       - run: python3 tools/validate_switch_standalone.py --esphome-path "$GITHUB_WORKSPACE/esphome"
         working-directory: rs485_frame-examples
+      - name: Check example-device.yaml / example-device-switches.yaml stay in sync
+        run: python3 tools/check_example_sync.py
+        working-directory: rs485_frame-examples

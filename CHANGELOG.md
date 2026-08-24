@@ -76,6 +76,22 @@ All notable changes to the published configuration interface are documented here
   internal-button-press mechanism as `switch.yaml`. Standalone config-validation harness
   at `hayward/aqualogic/tests/switch/` covers all three (not wired into
   `example-device.yaml` yet — planned follow-up).
+- **`hayward/aqualogic/example-device-switches.yaml`: switch-outputs sibling of
+  `example-device.yaml`**, wiring `switch.yaml`/`switch_secondary.yaml` up as a real
+  entry-point config — the follow-up planned in the `switch.yaml` entry above. Same shared
+  boilerplate as `example-device.yaml` (substitutions:, esphome:/esp32:/logger:, required
+  `bus.yaml`, "LED indicators: status", "Buttons: status-navigation", the legacy
+  `secondary_button` block, diagnostics, response_monitor examples); its "Switch outputs"
+  section replaces `example-device.yaml`'s separate "LED indicators: switch-like" +
+  "Buttons: switch-like" sections with one `switch.yaml`/`switch_secondary.yaml` include per
+  toggleable relay. Pick one file or the other for a device config, not both. Added to
+  `tools/validate_examples.py`'s entry-point sweep.
+- **`tools/check_example_sync.py`: checks `example-device.yaml` and
+  `example-device-switches.yaml` don't drift apart on their shared boilerplate.** Untagged
+  section headers (`# --- Title ---`) and the `substitutions:`/`esphome:`/`esp32:`/`logger:`
+  top-level keys must be byte-identical between the two files; flavor-tagged headers
+  (`# --- Title [tag] ---`) are exempt, since those are exactly the sections meant to
+  differ. Run in CI alongside the other config-validation checks.
 
 ### Fixed
 

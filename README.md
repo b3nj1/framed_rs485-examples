@@ -102,6 +102,7 @@ One row per controller family; per-package descriptions and status live in that 
 | Controller family | Device config | Status |
 |---|---|---|
 | Hayward AquaLogic / ProLogic | [hayward/aqualogic/example-device.yaml](hayward/aqualogic/example-device.yaml) | Core (bus, nav buttons, temps, AUX 1-2) tested on hardware; AUX 3-14 and LED bits 9-25 are community-sourced (see file comments) |
+| Hayward AquaLogic / ProLogic — switch-outputs variant | [hayward/aqualogic/example-device-switches.yaml](hayward/aqualogic/example-device-switches.yaml) | Sibling of the file above: toggleable relays (Lights, Filter, AUX 1-14, Valve 3/4, System Off, Service) are single optimistic `switch` entities instead of separate LED + button pairs. Pick one or the other, not both. Config-validated; not yet flashed as this combined file |
 | Jandy AquaLink RS — passive observer | [jandy/aqualink-rs/example-passive.yaml](jandy/aqualink-rs/example-passive.yaml) | **UNTESTED draft** |
 | Jandy AquaLink RS — active AllButton emulator | [jandy/aqualink-rs/example-allbutton.yaml](jandy/aqualink-rs/example-allbutton.yaml) | **UNTESTED draft — transmits** |
 
