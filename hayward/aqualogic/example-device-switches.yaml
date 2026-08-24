@@ -340,17 +340,11 @@ packages:
       #
       # NOTE: response_monitor.yaml/response_monitor_mask.yaml/response_monitor_display.yaml key
       # off a button's own name: (trigger.button_name:). switch.yaml's/switch_secondary.yaml's
-      # internal button (used by the Switch outputs section above) is `internal: true` with no
-      # name: set -- these commented examples below reuse the same switch_name label the button
-      # would otherwise have carried (e.g. "Filter"), so uncommenting one as-is will fail
-      # validation with "button_name matches 0 buttons on this hub". The component does support
-      # targeting a button by its id: instead (trigger.button_id:, e.g. switch_bit_${bit_filter}_btn
-      # for the Filter switch above) -- response_monitor.yaml/mask/display don't expose a
-      # button_id var yet, so that form needs a hand-written rs485_frame: response_monitor: block
-      # (see the on_confirmed:/on_failed: example below for that raw block shape) rather than
-      # these wrapper includes. Confirming a switch-based toggle via button_id is left as an
-      # exercise / future package-file addition; the entries below are unmodified from
-      # example-device.yaml for reference.
+      # internal button (used by the Switch outputs section above) carries name: "${switch_name}"
+      # for exactly this reason -- internal: true already keeps it out of Home Assistant, so the
+      # name has no user-visible effect, but it does give response_monitor a button_name to match
+      # (e.g. "Filter" below resolves to the Filter switch's internal button). Entries below are
+      # unmodified from example-device.yaml -- same button_name labels, same bits.
       #
       # - path: hayward/aqualogic/response_monitor.yaml
       #   vars: { monitor_name: "filter", button_name: "Filter", bit: "${bit_filter}" }

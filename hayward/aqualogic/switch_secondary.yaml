@@ -19,9 +19,14 @@ defaults:
   btn_element_bytes: ${secondary_cmd_element_bytes}
   btn_endian: ${cmd_endian}
 
+# name: is set (not just id:) despite internal: true so response_monitor.yaml/_mask/_display's
+# existing button_name: trigger form resolves this button the same way it would a plain
+# button.yaml entry — internal: true alone already keeps it out of Home Assistant, so the name
+# has no user-visible effect; it only exists as that join key.
 button:
   - platform: rs485_frame
     id: switch_bit_${bit}_btn
+    name: "${switch_name}"
     rs485_frame_id: pool
     internal: true
     value: ${switch_command}
